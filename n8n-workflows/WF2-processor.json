@@ -1,0 +1,142 @@
+{
+  "name": "WF-2: Lead Processor (Score + Enrich)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 1 }] }
+      },
+      "id": "n1",
+      "name": "Cron: Hourly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "schema": "public",
+        "table": "raw_leads",
+        "filterType": "string",
+        "filterString": "status=eq.raw",
+        "limit": 50,
+        "additionalFields": {}
+      },
+      "id": "n2",
+      "name": "Supabase: Fetch Raw Leads",
+      "type": "n8n-nodes-base.supabase",
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{ $json.email }}", "operation": "isEmpty" }]
+        }
+      },
+      "id": "n3",
+      "name": "IF: Email Missing?",
+      "type": "n8n-nodes-base.if",
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.hunter.io/v2/email-finder?domain={{ $json.company_domain }}&first_name={{ $json.name.split(' ')[0] }}&last_name={{ $json.name.split(' ').slice(1).join(' ') }}&api_key={{ $env.HUNTER_API_KEY }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "n4",
+      "name": "Hunter.io: Find Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [600, -100]
+    },
+    {
+      "parameters": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "requestMethod": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "jsonParameters": true,
+        "bodyParametersJson": "={ \"model\": \"llama3-70b-8192\", \"temperature\": 0.1, \"response_format\": { \"type\": \"json_object\" }, \"messages\": [ { \"role\": \"system\", \"content\": \"You are a lead qualification assistant for Bear Studios, a motion design and video production studio for SaaS founders and early-stage startups.\\n\\nScore the following lead 0-100 based on:\\n- FIT (40 pts): Are they a SaaS founder or early-stage startup? Is video/motion design relevant to their stage?\\n- INTENT (40 pts): Are there signals they need marketing/explainer/demo content? (Launching, fundraising, rebranding, hiring marketing team, low engagement, etc.)\\n- REACHABILITY (20 pts): Do they have a visible email or contact method? Are they active on the platform recently?\\n\\nOutput ONLY valid JSON: { \\\"score\\\": <0-100>, \\\"reasoning\\\": \\\"<1-2 sentences>\\\", \\\"signals\\\": [\\\"<signal1>\\\", \\\"<signal2>\\\"] }\" }, { \"role\": \"user\", \"content\": \"Name: {{ $json.name }}\\nCompany: {{ $json.company }}\\nSource: {{ $json.source }}\\nBio/Profile: {{ $json.bio }}\\nRecent content/post: {{ $json.post_content }}\" } ] }",
+        "options": {
+          "headers": {
+            "Authorization": "Bearer {{ $env.GROQ_API_KEY }}",
+            "Content-Type": "application/json"
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "n5",
+      "name": "Groq: Score Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [800, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Groq response and merge with lead data\nconst item = $input.first();\nconst groqResponse = item.json;\nlet scoring = {};\ntry {\n  const content = groqResponse.choices[0].message.content;\n  scoring = JSON.parse(content);\n} catch(e) {\n  scoring = { score: 0, reasoning: 'Parse error: ' + e.message, signals: [] };\n}\n\n// Get the original lead data from the previous run context\n// (We need to carry it forward through the Groq call)\nconst lead = item.json._lead || {};\nreturn [{\n  json: {\n    ...lead,\n    ai_score: scoring.score || 0,\n    ai_reasoning: scoring.reasoning || '',\n    ai_signals: scoring.signals || []\n  }\n}];"
+      },
+      "id": "n6",
+      "name": "Code: Parse Score",
+      "type": "n8n-nodes-base.code",
+      "position": [1000, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [{ "value1": "={{ $json.ai_score }}", "operation": "largerEqual", "value2": 40 }]
+        }
+      },
+      "id": "n7",
+      "name": "IF: Score >= 40?",
+      "type": "n8n-nodes-base.if",
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "leads",
+        "columns": "raw_lead_id,source,profile_url,name,email,company,company_domain,bio,post_content,ai_score,ai_reasoning,ai_signals,status",
+        "additionalFields": {}
+      },
+      "id": "n8",
+      "name": "Supabase: Insert Qualified Lead",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1400, -100]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "raw_leads",
+        "filterType": "string",
+        "filterString": "=id=eq.{{ $json.id }}",
+        "updateFields": { "status": "disqualified", "processed_at": "={{ new Date().toISOString() }}" }
+      },
+      "id": "n9",
+      "name": "Supabase: Mark Disqualified",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1400, 100]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "raw_leads",
+        "filterType": "string",
+        "filterString": "=id=eq.{{ $json.raw_lead_id }}",
+        "updateFields": { "status": "processed", "processed_at": "={{ new Date().toISOString() }}" }
+      },
+      "id": "n10",
+      "name": "Supabase: Mark Processed",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1600, -100]
+    }
+  ],
+  "connections": {
+    "Cron: Hourly": { "main": [[{ "node": "Supabase: Fetch Raw Leads", "type": "main", "index": 0 }]] },
+    "Supabase: Fetch Raw Leads": { "main": [[{ "node": "IF: Email Missing?", "type": "main", "index": 0 }]] },
+    "IF: Email Missing?": { "main": [[{ "node": "Hunter.io: Find Email", "type": "main", "index": 0 }], [{ "node": "Groq: Score Lead", "type": "main", "index": 0 }]] },
+    "Hunter.io: Find Email": { "main": [[{ "node": "Groq: Score Lead", "type": "main", "index": 0 }]] },
+    "Groq: Score Lead": { "main": [[{ "node": "Code: Parse Score", "type": "main", "index": 0 }]] },
+    "Code: Parse Score": { "main": [[{ "node": "IF: Score >= 40?", "type": "main", "index": 0 }]] },
+    "IF: Score >= 40?": { "main": [[{ "node": "Supabase: Insert Qualified Lead", "type": "main", "index": 0 }], [{ "node": "Supabase: Mark Disqualified", "type": "main", "index": 0 }]] },
+    "Supabase: Insert Qualified Lead": { "main": [[{ "node": "Supabase: Mark Processed", "type": "main", "index": 0 }]] }
+  }
+}

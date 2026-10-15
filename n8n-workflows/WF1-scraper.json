@@ -1,0 +1,175 @@
+{
+  "name": "WF-1: Lead Scraper",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 6 }] }
+      },
+      "id": "n1",
+      "name": "Cron: Every 6h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://oauth.reddit.com/r/SaaS/new.json?limit=100",
+        "authentication": "oAuth2",
+        "genericAuthType": "oAuth2Api",
+        "options": { "headers": { "User-Agent": "BearStudiosBot/1.0" } }
+      },
+      "id": "n2",
+      "name": "Reddit: r/SaaS",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [200, -100]
+    },
+    {
+      "parameters": {
+        "url": "https://oauth.reddit.com/r/startups/new.json?limit=100",
+        "authentication": "oAuth2",
+        "genericAuthType": "oAuth2Api",
+        "options": { "headers": { "User-Agent": "BearStudiosBot/1.0" } }
+      },
+      "id": "n3",
+      "name": "Reddit: r/startups",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://oauth.reddit.com/r/IMadeThis/new.json?limit=100",
+        "authentication": "oAuth2",
+        "genericAuthType": "oAuth2Api",
+        "options": { "headers": { "User-Agent": "BearStudiosBot/1.0" } }
+      },
+      "id": "n4",
+      "name": "Reddit: r/IMadeThis",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [200, 100]
+    },
+    {
+      "parameters": {
+        "url": "https://api.producthunt.com/v2/api/graphql",
+        "requestMethod": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "jsonParameters": true,
+        "bodyParametersJson": "{ \"query\": \"{ posts(order: NEWEST, first: 50, topic: \\\"developer-tools\\\") { edges { node { id name tagline url makers { name profileUrl twitterUsername } } } } }\" }",
+        "options": {}
+      },
+      "id": "n5",
+      "name": "ProductHunt: Recent Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [200, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://www.ycombinator.com/companies?batch=W25&batch=S25&batch=W24",
+        "options": {}
+      },
+      "id": "n6",
+      "name": "YC Companies: Fetch HTML",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByIndex",
+        "options": {}
+      },
+      "id": "n7",
+      "name": "Merge All Sources",
+      "type": "n8n-nodes-base.merge",
+      "position": [450, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize all sources into a common schema\nconst items = $input.all();\nconst normalized = [];\n\nfor (const item of items) {\n  const d = item.json;\n  let leads = [];\n\n  // Reddit\n  if (d.data?.children) {\n    for (const post of d.data.children) {\n      const p = post.data;\n      const domain = p.url ? new URL(p.url).hostname.replace('www.','') : null;\n      leads.push({\n        source: 'reddit',\n        profile_url: `https://reddit.com/u/${p.author}`,\n        name: p.author,\n        email: null,\n        company: null,\n        company_domain: domain,\n        bio: null,\n        post_content: `${p.title}\\n\\n${p.selftext || ''}`.substring(0, 2000),\n        raw_json: p\n      });\n    }\n  }\n\n  // ProductHunt\n  if (d.data?.posts?.edges) {\n    for (const edge of d.data.posts.edges) {\n      const post = edge.node;\n      for (const maker of (post.makers || [])) {\n        leads.push({\n          source: 'producthunt',\n          profile_url: maker.profileUrl || null,\n          name: maker.name,\n          email: null,\n          company: post.name,\n          company_domain: post.url ? new URL(post.url).hostname.replace('www.','') : null,\n          bio: maker.twitterUsername ? `@${maker.twitterUsername}` : null,\n          post_content: `${post.name}: ${post.tagline}`.substring(0, 2000),\n          raw_json: { post, maker }\n        });\n      }\n    }\n  }\n\n  for (const lead of leads) {\n    normalized.push({ json: lead });\n  }\n}\n\nreturn normalized;"
+      },
+      "id": "n8",
+      "name": "Normalize: Map to Schema",
+      "type": "n8n-nodes-base.code",
+      "position": [650, 100]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/check-lead-exists",
+        "requestMethod": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "jsonParameters": true,
+        "bodyParametersJson": "={ \"email\": \"{{ $json.email }}\", \"profile_url\": \"{{ $json.profile_url }}\", \"domain\": \"{{ $json.company_domain }}\", \"name\": \"{{ $json.name }}\" }",
+        "options": {
+          "headers": {
+            "Authorization": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "id": "n9",
+      "name": "Dedup: Check Exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [850, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [{ "value1": "={{ $json.exists }}", "value2": false }]
+        }
+      },
+      "id": "n10",
+      "name": "IF: Is New Lead?",
+      "type": "n8n-nodes-base.if",
+      "position": [1050, 100]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "raw_leads",
+        "columns": "source,profile_url,name,email,company,company_domain,bio,post_content,raw_json,status",
+        "additionalFields": {}
+      },
+      "id": "n11",
+      "name": "Supabase: Insert raw_leads",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1250, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log run summary\nconst all = $input.all();\nconsole.log(`[WF-1 Scraper] Inserted ${all.length} new raw leads`);\nreturn [{ json: { inserted: all.length, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "n12",
+      "name": "Log: Run Summary",
+      "type": "n8n-nodes-base.code",
+      "position": [1450, 0]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "workflow_logs",
+        "columns": "workflow_name,status,leads_scraped,started_at,finished_at",
+        "additionalFields": {}
+      },
+      "id": "n13",
+      "name": "Supabase: Write Log",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1650, 0]
+    }
+  ],
+  "connections": {
+    "Cron: Every 6h": { "main": [[{ "node": "Reddit: r/SaaS", "type": "main", "index": 0 }, { "node": "Reddit: r/startups", "type": "main", "index": 0 }, { "node": "Reddit: r/IMadeThis", "type": "main", "index": 0 }, { "node": "ProductHunt: Recent Posts", "type": "main", "index": 0 }, { "node": "YC Companies: Fetch HTML", "type": "main", "index": 0 }]] },
+    "Reddit: r/SaaS": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 0 }]] },
+    "Reddit: r/startups": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 1 }]] },
+    "Reddit: r/IMadeThis": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 2 }]] },
+    "ProductHunt: Recent Posts": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 3 }]] },
+    "YC Companies: Fetch HTML": { "main": [[{ "node": "Merge All Sources", "type": "main", "index": 4 }]] },
+    "Merge All Sources": { "main": [[{ "node": "Normalize: Map to Schema", "type": "main", "index": 0 }]] },
+    "Normalize: Map to Schema": { "main": [[{ "node": "Dedup: Check Exists", "type": "main", "index": 0 }]] },
+    "Dedup: Check Exists": { "main": [[{ "node": "IF: Is New Lead?", "type": "main", "index": 0 }]] },
+    "IF: Is New Lead?": { "main": [[{ "node": "Supabase: Insert raw_leads", "type": "main", "index": 0 }], []] },
+    "Supabase: Insert raw_leads": { "main": [[{ "node": "Log: Run Summary", "type": "main", "index": 0 }]] },
+    "Log: Run Summary": { "main": [[{ "node": "Supabase: Write Log", "type": "main", "index": 0 }]] }
+  }
+}

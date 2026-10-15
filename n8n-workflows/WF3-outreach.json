@@ -1,0 +1,73 @@
+{
+  "name": "WF-3: Outreach Generator",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "n1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "schema": "public",
+        "table": "leads",
+        "filterType": "string",
+        "filterString": "status=eq.scored&ai_score=gte.60&outreach_eligible=eq.true",
+        "limit": 10,
+        "additionalFields": {}
+      },
+      "id": "n2",
+      "name": "Supabase: Fetch Leads for Outreach",
+      "type": "n8n-nodes-base.supabase",
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={ \"model\": \"llama3-70b-8192\", \"temperature\": 0.7, \"response_format\": { \"type\": \"json_object\" }, \"messages\": [ { \"role\": \"system\", \"content\": \"You are an expert cold email writer for Bear Studios, a motion design and video production studio that helps SaaS founders communicate their product value through professional video content. Your emails are concise (under 120 words), human, and specific to the person. Never use corporate jargon. No aggressive sales language. Output JSON: { \\\"subject\\\": \\\"...\\\", \\\"body\\\": \\\"...\\\" }\" }, { \"role\": \"user\", \"content\": \"Write a personalized cold email for:\\nName: {{ $json.name }}\\nCompany: {{ $json.company }}\\nBio: {{ $json.bio }}\\nRecent post/content: {{ $json.post_content }}\\nSource: {{ $json.source }}\\nAI signals: {{ JSON.stringify($json.ai_signals) }}\" } ] }",
+        "options": {
+          "headers": {
+            "Authorization": "Bearer {{ $env.GROQ_API_KEY }}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "id": "n3",
+      "name": "Groq: Generate Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst content = item.json.choices[0].message.content;\nlet email = {};\ntry { email = JSON.parse(content); } catch(e) { email = { subject: 'Quick question', body: content }; }\nreturn [{ json: { ...item.json._lead, generated_subject: email.subject, generated_body: email.body } }];"
+      },
+      "id": "n4",
+      "name": "Code: Parse Email",
+      "type": "n8n-nodes-base.code",
+      "position": [600, 0]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "outreach_queue",
+        "columns": "lead_id,subject,body,status,sequence_step",
+        "additionalFields": {}
+      },
+      "id": "n5",
+      "name": "Supabase: Queue for Review",
+      "type": "n8n-nodes-base.supabase",
+      "position": [800, 0]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": { "main": [[{ "node": "Supabase: Fetch Leads for Outreach", "type": "main", "index": 0 }]] },
+    "Supabase: Fetch Leads for Outreach": { "main": [[{ "node": "Groq: Generate Email", "type": "main", "index": 0 }]] },
+    "Groq: Generate Email": { "main": [[{ "node": "Code: Parse Email", "type": "main", "index": 0 }]] },
+    "Code: Parse Email": { "main": [[{ "node": "Supabase: Queue for Review", "type": "main", "index": 0 }]] }
+  }
+}

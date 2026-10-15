@@ -1,0 +1,70 @@
+{
+  "name": "WF-5: Feedback Loop (Weekly)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "weeks", "weeksInterval": 1, "triggerAtDay": [0], "triggerAtHour": 20 }] }
+      },
+      "id": "n1",
+      "name": "Cron: Weekly Sunday 8pm",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "schema": "public",
+        "table": "leads",
+        "filterType": "string",
+        "filterString": "feedback_exported=eq.false&status=in.(converted,replied,dead,bounced,unsubscribed)",
+        "additionalFields": {}
+      },
+      "id": "n2",
+      "name": "Supabase: Fetch Concluded Leads",
+      "type": "n8n-nodes-base.supabase",
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst outcomeMap = {\n  converted: { label: 1.0, outcome: 'converted' },\n  replied: { label: 0.7, outcome: 'replied_positive' },\n  dead: { label: 0.0, outcome: 'no_reply' },\n  bounced: { label: -1.0, outcome: 'bounced' },\n  unsubscribed: { label: -0.5, outcome: 'unsubscribed' }\n};\nreturn items.map(item => {\n  const lead = item.json;\n  const map = outcomeMap[lead.status] || { label: 0, outcome: 'unknown' };\n  return { json: {\n    lead_id: lead.id,\n    lead_bio: lead.bio,\n    post_content: lead.post_content,\n    outcome: map.outcome,\n    outcome_label: map.label\n  }};\n});"
+      },
+      "id": "n3",
+      "name": "Code: Build Examples",
+      "type": "n8n-nodes-base.code",
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "prompt_examples",
+        "columns": "lead_id,lead_bio,post_content,outcome,outcome_label",
+        "additionalFields": {}
+      },
+      "id": "n4",
+      "name": "Supabase: Insert Examples",
+      "type": "n8n-nodes-base.supabase",
+      "position": [600, 0]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "leads",
+        "filterType": "string",
+        "filterString": "feedback_exported=eq.false&status=in.(converted,replied,dead,bounced,unsubscribed)",
+        "updateFields": { "feedback_exported": true }
+      },
+      "id": "n5",
+      "name": "Supabase: Mark Exported",
+      "type": "n8n-nodes-base.supabase",
+      "position": [800, 0]
+    }
+  ],
+  "connections": {
+    "Cron: Weekly Sunday 8pm": { "main": [[{ "node": "Supabase: Fetch Concluded Leads", "type": "main", "index": 0 }]] },
+    "Supabase: Fetch Concluded Leads": { "main": [[{ "node": "Code: Build Examples", "type": "main", "index": 0 }]] },
+    "Code: Build Examples": { "main": [[{ "node": "Supabase: Insert Examples", "type": "main", "index": 0 }]] },
+    "Supabase: Insert Examples": { "main": [[{ "node": "Supabase: Mark Exported", "type": "main", "index": 0 }]] }
+  }
+}
