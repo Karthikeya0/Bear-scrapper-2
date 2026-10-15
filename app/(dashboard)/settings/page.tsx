@@ -15,7 +15,10 @@ type Template = { id: string; key: string; name: string; subject_template: strin
 type TabKey = 'icp' | 'sending' | 'templates' | 'integrations'
 type Status = {
   supabase: { connected: boolean; error?: string }
-  n8n: { baseUrlConfigured: boolean; secretConfigured: boolean; reachable: boolean; error?: string }
+  n8n: {
+    baseUrlConfigured: boolean; secretConfigured: boolean; reachable: boolean; error?: string
+    webhooks?: { workflow: string; path: string; state: 'ready' | 'missing' | 'wrong_method' | 'unknown'; detail?: string }[]
+  }
 }
 
 // Same defaults as the seed in supabase/schema.sql — used only if a settings row is missing.
@@ -400,12 +403,34 @@ function SettingsInner() {
                   ['wf3-outreach', 'WF-3 · outreach generator', '{ triggered_by, timestamp }'],
                   ['wf4-reply-monitor', 'WF-4 · reply monitor', '{ triggered_by, timestamp }'],
                   ['wf5-feedback', 'WF-5 · feedback loop', '{ triggered_by, timestamp }'],
-                ].map(([path, label, payload]) => (
-                  <div key={path} className="kv">
-                    <span>{label}</span>
-                    <span className="mono" style={{ textAlign: 'right' }}>/webhook/{path} <span className="subtle">{payload}</span></span>
+                ].map(([path, label, payload]) => {
+                  const probe = status?.n8n.webhooks?.find(w => w.path === path)
+                  return (
+                    <div key={path} className="kv" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span>{label}</span>
+                      <span className="row" style={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <span className="mono">/webhook/{path} <span className="subtle">{payload}</span></span>
+                        {probe && (
+                          <span title={probe.detail}>
+                            <span className={`badge as-is ${probe.state === 'ready' ? 'green' : probe.state === 'unknown' ? '' : 'red'}`}>
+                              {probe.state === 'ready' ? 'Ready' : probe.state === 'missing' ? 'Missing in n8n' : probe.state === 'wrong_method' ? 'Not POST' : 'Unknown'}
+                            </span>
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
+                {status?.n8n.webhooks?.some(w => w.state !== 'ready') && (
+                  <div style={{ marginTop: 14 }}>
+                    <Alert tone="warn" title="Some webhooks are not set up in n8n">
+                      For each one marked Missing, open that workflow in n8n and add a <strong>Webhook</strong> trigger node with HTTP Method{' '}
+                      <span className="mono">POST</span>, the Path shown above, and Header Auth on <span className="mono">X-Webhook-Secret</span>.
+                      Connect it to the same first node as the existing trigger, then publish/activate the workflow. Marked Not POST: change
+                      that Webhook node&apos;s HTTP Method to POST.
+                    </Alert>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           )}

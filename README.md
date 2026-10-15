@@ -77,6 +77,8 @@ Every call is `POST {N8N_BASE_URL}/webhook/<path>` with header `X-Webhook-Secret
 | `approve-and-send` | Approve & send in Outreach queue | `{ outreach_id, lead_id, approved_at }` |
 | `wf1-scraper` … `wf5-feedback` | "Run now" on the Workflows page | `{ triggered_by: "dashboard", timestamp }` |
 
+**Each of these paths must exist in n8n as a Webhook trigger node** (HTTP Method `POST`, the path above, Authentication → Header Auth with header name `X-Webhook-Secret`), in a published/active workflow. The exports in `n8n-workflows/` only contain a webhook for `approve-and-send`. WF-1–WF-5 use Schedule/Manual triggers, so add the Webhook node next to the existing trigger and connect it to the same first node(s). Settings → Integrations probes every path (a secret-less GET that does not run the workflow) and marks each one Ready / Missing in n8n / Not POST.
+
 The approve flow sets the row to `approved` (with your edits) first. WF-3b then reads subject/body from that row. If n8n can't be reached, the row goes back to `pending_review` and the UI shows the error, so nothing is silently lost or double-sent.
 
 Settings → Integrations shows live Supabase/n8n status. It never shows secret values.

@@ -48,9 +48,12 @@ export async function callWebhook(path: string, payload: Record<string, unknown>
     const text = (await res.text().catch(() => '')).slice(0, 400)
     let error = `n8n responded with HTTP ${res.status}.`
     if (res.status === 404) {
-      error =
-        `n8n has no active webhook at "/webhook/${path}"` +
-        (/not registered for POST/i.test(text) ? ' for POST requests (set the Webhook node HTTP Method to POST).' : '. Make sure the workflow is active and its Webhook node uses this path.')
+      error = /not registered for POST/i.test(text)
+        ? `n8n has a webhook at "/webhook/${path}" but not for POST. Set that Webhook node's HTTP Method to POST.`
+        : `n8n has no active webhook at "/webhook/${path}". The workflow needs a Webhook trigger node ` +
+          `(HTTP Method POST, Path "${path}") and must be published/active in n8n.`
+    } else if (res.status === 401 || res.status === 403) {
+      error = `n8n rejected the request for "/webhook/${path}" (HTTP ${res.status}). Check that N8N_WEBHOOK_SECRET matches the secret configured in n8n.`
     } else if (text) {
       error += ` ${text}`
     }
@@ -58,6 +61,31 @@ export async function callWebhook(path: string, payload: Record<string, unknown>
   } catch (err) {
     const reason = err instanceof Error && err.name === 'TimeoutError' ? `timed out after ${timeoutMs / 1000}s` : String(err)
     return { ok: false, status: 502, error: `Could not reach n8n (${reason}).` }
+  }
+}
+
+export type WebhookState = 'ready' | 'missing' | 'wrong_method' | 'unknown'
+
+/**
+ * Checks whether a POST webhook is registered WITHOUT running its workflow: sends a GET with no
+ * secret. For a POST-only webhook n8n answers 404 "not registered for GET requests. Did you mean
+ * … POST"; for an unknown path it answers 404 "… is not registered". Never sends the secret, so a
+ * secret-protected workflow cannot be started by this probe.
+ */
+export async function probeWebhook(path: string): Promise<{ state: WebhookState; detail?: string }> {
+  const base = baseUrl()
+  if (!base) return { state: 'unknown', detail: 'N8N_BASE_URL is not set.' }
+  try {
+    const res = await fetch(`${base}/webhook/${path}`, { method: 'GET', signal: AbortSignal.timeout(5000), cache: 'no-store' })
+    const text = (await res.text().catch(() => '')).slice(0, 400)
+    if (res.status === 404 && /not registered for GET/i.test(text)) {
+      return /POST/.test(text) ? { state: 'ready' } : { state: 'wrong_method', detail: 'Registered, but not for POST.' }
+    }
+    if (res.status === 404) return { state: 'missing' }
+    // Anything else means a GET webhook exists at this path; the app sends POST.
+    return { state: 'wrong_method', detail: `Responds to GET (HTTP ${res.status}); the app sends POST.` }
+  } catch (err) {
+    return { state: 'unknown', detail: err instanceof Error ? err.message : String(err) }
   }
 }
 

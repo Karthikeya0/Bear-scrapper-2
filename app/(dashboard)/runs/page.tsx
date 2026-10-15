@@ -38,6 +38,7 @@ export default function RunsPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [triggering, setTriggering] = useState<WorkflowKey | ''>('')
   const [failures24h, setFailures24h] = useState(0)
+  const [webhookState, setWebhookState] = useState<Record<string, string>>({})
   const [lastResult, setLastResult] = useState<Record<string, { ok: boolean; at: string; error?: string }>>({})
 
   const load = useCallback(async () => {
@@ -65,6 +66,20 @@ export default function RunsPage() {
       supabase.removeChannel(channel)
     }
   }, [load, supabase])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/integrations/status', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (cancelled || !data?.n8n?.webhooks) return
+        setWebhookState(Object.fromEntries((data.n8n.webhooks as { workflow: string; state: string }[]).map(w => [w.workflow, w.state])))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function run(key: WorkflowKey, label: string) {
     setTriggering(key)
@@ -118,7 +133,11 @@ export default function RunsPage() {
                 </div>
                 <div className="wf-desc">{w.description}</div>
                 <div className="hint">
-                  {result && !result.ok ? (
+                  {webhookState[w.key] === 'missing' && !result ? (
+                    <span className="overdue">No webhook in n8n yet — see Settings → Integrations.</span>
+                  ) : webhookState[w.key] === 'wrong_method' && !result ? (
+                    <span className="overdue">n8n webhook is not set to POST.</span>
+                  ) : result && !result.ok ? (
                     <span className="overdue">{result.error}</span>
                   ) : last ? (
                     <>Last logged run {timeAgo(last.started_at)} · <StatusBadge status={last.status} plain /></>
