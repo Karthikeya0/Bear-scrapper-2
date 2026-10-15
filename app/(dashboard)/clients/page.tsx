@@ -1,156 +1,193 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/Toast'
+import { Alert, Drawer, EmptyState, PageHeader, SkeletonRows, Spinner, StatusBadge } from '@/components/ui'
+import { IconPlus, IconSearch, IconUsers } from '@/components/icons'
+import { formatDate, formatMoney } from '@/lib/format'
+
+type Client = {
+  id: string; company: string; contact_name: string | null; contact_email: string | null
+  status: string; monthly_value: number | null; currency: string | null; created_at: string
+}
+const EMPTY = { company: '', contact_name: '', contact_email: '', status: 'lead', monthly_value: '', currency: 'USD' }
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<any[]>([])
+  const router = useRouter()
+  const toast = useToast()
+  const supabase = useMemo(() => createClient(), [])
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [company, setCompany] = useState('')
-  const [contactName, setContactName] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [status, setStatus] = useState('lead')
+  const [status, setStatus] = useState('all')
+  const [form, setForm] = useState<typeof EMPTY | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const supabase = createClient()
-
-  const fetchClients = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
-    let query = supabase.from('clients').select('*')
-    if (search) query = query.ilike('company', `%${search}%`)
-    const { data } = await query.order('created_at', { ascending: false })
-    setClients(data || [])
+    const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
+    if (error) setError(error.message)
+    else {
+      setError('')
+      setClients((data ?? []) as Client[])
+    }
     setLoading(false)
-  }
+  }, [supabase])
 
-  useEffect(() => { fetchClients() }, [search])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load
+    load()
+  }, [load])
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const filtered = clients.filter(c => {
+    if (status !== 'all' && c.status !== status) return false
+    const q = search.trim().toLowerCase()
+    return !q || [c.company, c.contact_name, c.contact_email].some(v => v?.toLowerCase().includes(q))
+  })
+  const active = clients.filter(c => c.status === 'active')
+  const mrr = active.reduce((s, c) => s + (Number(c.monthly_value) || 0), 0)
+
+  async function create(e: React.FormEvent) {
     e.preventDefault()
+    if (!form?.company.trim()) return
     setSaving(true)
-    await supabase.from('clients').insert([{ company, contact_name: contactName, contact_email: contactEmail, status }])
+    const { data: auth } = await supabase.auth.getUser()
+    const { data, error } = await supabase
+      .from('clients')
+      .insert({
+        company: form.company.trim(),
+        contact_name: form.contact_name.trim() || null,
+        contact_email: form.contact_email.trim() || null,
+        status: form.status,
+        monthly_value: form.monthly_value === '' ? null : Number(form.monthly_value),
+        currency: form.currency || 'USD',
+        owner_id: auth.user?.id ?? null,
+      })
+      .select('id')
+      .single()
     setSaving(false)
-    setDrawerOpen(false)
-    setCompany(''); setContactName(''); setContactEmail(''); setStatus('lead')
-    fetchClients()
-  }
-
-  const statusClass = (s: string) => {
-    const m: Record<string, string> = { active: 'badge-green', lead: 'badge-yellow', past: 'badge-default' }
-    return `badge ${m[s] || 'badge-default'}`
+    if (error) return toast.error(`Could not create client: ${error.message}`)
+    toast.success(`${form.company.trim()} added.`)
+    setForm(null)
+    router.push(`/clients/${data.id}`)
   }
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <div className="page-title">Clients</div>
-          <div className="page-subtitle">{clients.length} total</div>
+      <PageHeader
+        title="Clients"
+        description={`${active.length} active · ${formatMoney(mrr)} monthly retained`}
+        actions={<button className="btn btn-primary" onClick={() => setForm({ ...EMPTY })}><IconPlus className="icon" /> New client</button>}
+      />
+
+      <div className="toolbar">
+        <div className="search">
+          <IconSearch />
+          <input className="input" placeholder="Search company or contact…" value={search} onChange={e => setSearch(e.target.value)} aria-label="Search clients" />
         </div>
-        <div className="page-actions">
-          <button onClick={() => setDrawerOpen(true)} className="btn btn-primary btn-sm">+ New Client</button>
-        </div>
+        <select className="select" value={status} onChange={e => setStatus(e.target.value)} aria-label="Status">
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="lead">Lead</option>
+          <option value="past">Past</option>
+        </select>
       </div>
 
-      <div className="page-body fade-in">
-        {/* Search */}
-        <div className="toolbar">
-          <input
-            className="search-input"
-            placeholder="Search clients…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
+      {error && <Alert title="Could not load clients">{error}</Alert>}
 
-        {/* Table */}
-        <div className="card" style={{ padding: 0 }}>
-          <div className="table-wrap">
-            <table>
-              <thead>
+      <div className="card">
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Company</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th className="t-right">Monthly value</th>
+                <th className="t-right">Added</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && clients.length === 0 ? (
+                <SkeletonRows rows={5} cols={5} />
+              ) : filtered.length === 0 ? (
                 <tr>
-                  <th>Company</th>
-                  <th>Contact</th>
-                  <th>Email</th>
-                  <th>Status</th>
-                  <th>Added</th>
-                  <th></th>
+                  <td colSpan={5}>
+                    <EmptyState
+                      icon={<IconUsers />}
+                      title={clients.length ? 'No clients match' : 'No clients yet'}
+                      text={clients.length ? 'Try a different search or filter.' : 'Add your first client to start tracking projects and deliverables.'}
+                      action={!clients.length && <button className="btn btn-primary" onClick={() => setForm({ ...EMPTY })}><IconPlus className="icon" /> New client</button>}
+                    />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={6}><div className="skeleton" style={{ height: 40 }} /></td></tr>
-                ) : clients.length === 0 ? (
-                  <tr><td colSpan={6}>
-                    <div className="empty-state">
-                      <div className="empty-state-icon">👥</div>
-                      <div className="empty-state-title">No clients yet</div>
-                      <p>Add your first client to get started.</p>
-                    </div>
-                  </td></tr>
-                ) : clients.map(c => (
-                  <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => window.location.href = `/clients/${c.id}`}>
-                    <td style={{ fontWeight: 500 }}>{c.company}</td>
-                    <td className="text-sm text-muted">{c.contact_name || '—'}</td>
-                    <td className="text-sm font-mono text-muted">{c.contact_email || '—'}</td>
+              ) : (
+                filtered.map(c => (
+                  <tr key={c.id} className="clickable" onClick={() => router.push(`/clients/${c.id}`)}>
+                    <td><Link href={`/clients/${c.id}`} className="cell-title" onClick={e => e.stopPropagation()}>{c.company}</Link></td>
                     <td>
-                      <span className={statusClass(c.status)}>
-                        <span className="badge-dot" />
-                        {c.status}
-                      </span>
+                      <div>{c.contact_name || <span className="subtle">—</span>}</div>
+                      {c.contact_email && <div className="cell-sub">{c.contact_email}</div>}
                     </td>
-                    <td className="text-sm text-subtle font-mono">{new Date(c.created_at).toLocaleDateString()}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <Link href={`/clients/${c.id}`} className="btn btn-ghost btn-sm" onClick={e => e.stopPropagation()}>View →</Link>
-                    </td>
+                    <td><StatusBadge status={c.status} /></td>
+                    <td className="t-right num">{formatMoney(c.monthly_value, c.currency ?? 'USD')}</td>
+                    <td className="t-right subtle num">{formatDate(c.created_at)}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Drawer overlay */}
-      {drawerOpen && <div className="drawer-overlay" onClick={() => setDrawerOpen(false)} />}
-
-      {/* Add client drawer */}
-      <div className={`drawer ${drawerOpen ? 'open' : ''}`}>
-        <div className="drawer-header">
-          <span className="drawer-title">New Client</span>
-          <button className="btn btn-ghost btn-icon" onClick={() => setDrawerOpen(false)}>✕</button>
-        </div>
-        <div className="drawer-body">
-          <form onSubmit={handleAdd}>
-            <div className="form-group">
-              <label className="form-label">Company name *</label>
-              <input className="form-input" required value={company} onChange={e => setCompany(e.target.value)} placeholder="Acme Inc." />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Contact name</label>
-              <input className="form-input" value={contactName} onChange={e => setContactName(e.target.value)} placeholder="Jane Smith" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Contact email</label>
-              <input type="email" className="form-input" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="jane@acme.com" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Status</label>
-              <select className="form-select" value={status} onChange={e => setStatus(e.target.value)}>
-                <option value="lead">Lead</option>
-                <option value="active">Active</option>
-                <option value="past">Past</option>
-              </select>
-            </div>
-            <div className="divider" />
-            <button type="submit" className="btn btn-primary w-full" disabled={saving || !company}>
-              {saving ? 'Saving…' : 'Create Client'}
+      <Drawer
+        open={!!form}
+        onClose={() => setForm(null)}
+        title="New client"
+        description="Add a company you work with or are pitching."
+        footer={
+          <>
+            <button type="button" className="btn" onClick={() => setForm(null)}>Cancel</button>
+            <button type="submit" form="client-form" className="btn btn-primary" disabled={saving || !form?.company.trim()}>
+              {saving && <Spinner />} Create client
             </button>
+          </>
+        }
+      >
+        {form && (
+          <form id="client-form" onSubmit={create}>
+            <div className="field">
+              <label className="label" htmlFor="c-company">Company name</label>
+              <input id="c-company" className="input" required autoFocus value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} placeholder="Acme Inc." />
+            </div>
+            <div className="form-grid">
+              <div className="field">
+                <label className="label" htmlFor="c-name">Contact name</label>
+                <input id="c-name" className="input" value={form.contact_name} onChange={e => setForm({ ...form, contact_name: e.target.value })} placeholder="Jane Smith" />
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="c-email">Contact email</label>
+                <input id="c-email" type="email" className="input" value={form.contact_email} onChange={e => setForm({ ...form, contact_email: e.target.value })} placeholder="jane@acme.com" />
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="c-status">Status</label>
+                <select id="c-status" className="select" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+                  <option value="lead">Lead</option>
+                  <option value="active">Active</option>
+                  <option value="past">Past</option>
+                </select>
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="c-value">Monthly value</label>
+                <input id="c-value" type="number" min={0} step="0.01" className="input" value={form.monthly_value} onChange={e => setForm({ ...form, monthly_value: e.target.value })} placeholder="0" />
+              </div>
+            </div>
           </form>
-        </div>
-      </div>
+        )}
+      </Drawer>
     </>
   )
 }

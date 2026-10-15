@@ -1,167 +1,88 @@
-# Bear Studios — Lead Generation System
+# Bear Studios — Lead Generation & Studio Operations
 
-A full-stack lead generation and outreach management system for Bear Studios.
-
----
-
-## Architecture
+A Next.js 16 dashboard on top of Supabase and self-hosted n8n. It covers lead scraping and AI scoring, human-approved cold outreach, and client/project operations with a client portal.
 
 ```
-Oracle Cloud (self-hosted n8n)
-  └─ WF-1: Scraper (Reddit, Product Hunt, YC)  → Supabase raw_leads
-  └─ WF-2: Processor (Hunter.io enrich + Groq score) → Supabase leads
-  └─ WF-3: Outreach Generator (Groq personalize) → Supabase outreach_queue
-  └─ WF-3b: Send Approved (Gmail API) → on webhook from dashboard
-  └─ WF-4: Reply Monitor (Gmail polling) → status updates
-  └─ WF-5: Feedback Loop (weekly) → prompt_examples
+n8n (self-hosted)
+  WF-1 Scraper (Reddit, Product Hunt, YC)      → raw_leads
+  WF-2 Processor (Hunter.io + Groq scoring)    → leads
+  WF-3 Outreach generator (Groq)               → outreach_queue (pending_review)
+  WF-3b Send approved (webhook: approve-and-send, Gmail) → outreach_history, outreach_sequences
+  WF-4 Reply monitor (Gmail polling)           → leads.status = replied
+  WF-5 Feedback loop (weekly)                  → prompt_examples
 
-Supabase (database + auth + edge functions)
-  └─ 10 tables with RLS
-  └─ check-lead-exists edge function (dedup)
-
-Vercel (Next.js 14 dashboard)
-  └─ Magic link login
-  └─ Leads table + detail view
-  └─ Outreach approval queue
-  └─ Run history + manual triggers
-  └─ Settings editor
+Supabase  — Postgres + Auth (magic link) + RLS + Realtime + check-lead-exists edge function
+Next.js   — this app (deploy on Vercel)
 ```
 
----
-
-## Setup Guide
-
-### Step 0 — Prerequisites (DO THESE BEFORE ANYTHING ELSE)
-
-- [ ] Verify SPF/DKIM/DMARC on your sending domain at [mxtoolbox.com/SuperTool.aspx](https://mxtoolbox.com/SuperTool.aspx)
-- [ ] Register a Reddit app at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps)
-- [ ] Get a Product Hunt API token at [api.producthunt.com](https://api.producthunt.com)
-- [ ] Enable Gmail API in Google Cloud Console + create OAuth2 credentials
-- [ ] Sign up for Hunter.io (free: 25 lookups/month)
-- [ ] Get your Groq API key at [console.groq.com](https://console.groq.com)
-
----
-
-### Step 1 — Supabase Setup
-
-1. Open your Supabase project → **SQL Editor**
-2. Paste the entire contents of `../supabase/schema.sql` and click **Run**
-3. Deploy the Edge Function:
-   ```bash
-   cd ../supabase
-   npx supabase functions deploy check-lead-exists --project-ref YOUR_PROJECT_REF
-   ```
-4. In Supabase → **Authentication → URL Configuration**:
-   - Add your Vercel URL to **Site URL**: `https://bear-dashboard.vercel.app`
-   - Add to **Redirect URLs**: `https://bear-dashboard.vercel.app/auth/callback`
-5. In Supabase → **Authentication → Email Templates**: keep defaults (magic link email)
-
----
-
-### Step 2 — Deploy Dashboard to Vercel
+## Run locally
 
 ```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# From the dashboard directory:
-cd dashboard
-
-# Deploy (follow prompts — link to new project)
-vercel
-
-# Set environment variables:
-vercel env add NEXT_PUBLIC_SUPABASE_URL
-vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY
-vercel env add SUPABASE_SERVICE_ROLE_KEY
-vercel env add N8N_BASE_URL          # e.g. http://YOUR_ORACLE_IP:5678
-vercel env add N8N_WEBHOOK_SECRET    # any random string you choose
-
-# Deploy to production:
-vercel --prod
+npm install
+cp .env.example .env.local    # then fill in real values
+npm run dev                   # http://localhost:3000
 ```
 
-You'll get a URL like `https://bear-studios-dashboard.vercel.app`. Visit it and sign in with your email.
+Other scripts: `npm run lint`, `npm run build`, `npm start` (serves the production build).
 
----
+If the Supabase variables are missing, the app shows a "configuration required" screen. It never falls back to demo data.
 
-### Step 3 — Import n8n Workflows
+## Environment variables
 
-For each file in `../n8n-workflows/`:
+| Variable | Where | Exposed to browser? | Purpose |
+|---|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Vercel / `.env.local` | yes (by design) | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel / `.env.local` | yes (by design, protected by RLS) | Supabase anon key |
+| `N8N_BASE_URL` | Vercel / `.env.local` | **no** | e.g. `https://n8n.example.com` (no trailing `/webhook`) |
+| `N8N_WEBHOOK_SECRET` | Vercel / `.env.local` **and** n8n | **no** | Sent as `X-Webhook-Secret`, checked by the n8n "Validate Secret" node |
 
-1. Open your n8n canvas
-2. Click **⋮ (menu) → Import from file**
-3. Select the JSON file
-4. After import, connect credentials:
-   - Reddit OAuth2
-   - Gmail OAuth2
-   - Supabase (API key + URL)
-   - Generic HTTP Auth for Groq (`Authorization: Bearer YOUR_GROQ_KEY`)
-   - Generic HTTP Auth for Hunter.io
-5. Set environment variables in n8n:
-   - `SUPABASE_URL` = your Supabase URL
-   - `SUPABASE_SERVICE_ROLE_KEY` = your service role key
-   - `GROQ_API_KEY` = your Groq key
-   - `HUNTER_API_KEY` = your Hunter.io key
-   - `N8N_WEBHOOK_SECRET` = same secret as in Vercel
-6. Activate each workflow in order: WF-1 → WF-2 → WF-3b → WF-4 → WF-5
+The app does **not** need the Supabase service-role key. n8n and the edge function use it on their side.
 
-> **Note**: WF-3 (outreach generator) is triggered manually from the dashboard. WF-3b runs on webhook.
+## Database
 
----
+Run these in the Supabase SQL editor, in order. Every file is safe to re-run.
 
-### Step 4 — Connect n8n Webhooks to Dashboard
+1. `supabase/schema.sql`: base schema. Skip it if it's already applied.
+2. `supabase/migrations/002_n8n_compat.sql`: **additive only**. Adds the columns the n8n workflows read/write (`raw_leads.status`, `leads.ai_reasoning`, `outreach_history.body_sent/thread_id`, `outreach_sequences.sent/cancelled`, …), allows the `bounced` status, enables Realtime.
+3. `supabase/migrations/003_security_rls.sql`: replaces the open `using (true)` policies with role-based ones. It also fixes the recursive `user_profiles` policy and makes new sign-ups `pending` instead of `owner`. Before you run it, make sure n8n uses the **service-role** key.
 
-The WF-3b workflow uses the webhook path `approve-and-send`. In your n8n, the webhook URL will be:
+### Roles
+
+| Role | Access |
+|---|---|
+| `owner` | Everything except the client portal |
+| `editor` | Overview + Production board (read-only on leads) |
+| `client` | `/portal/dashboard`: their own projects, deliverables, messages |
+| `pending` | Nothing until an owner assigns a role (default for new sign-ups) |
+
+Assign roles in the SQL editor:
+
+```sql
+update public.user_profiles set role = 'editor'
+where id = (select id from auth.users where email = 'person@example.com');
+
+-- Give a client portal access: set their role, then link them to a client row
+update public.user_profiles set role = 'client'
+where id = (select id from auth.users where email = 'client@acme.com');
+update public.clients set portal_user_id = (select id from auth.users where email = 'client@acme.com')
+where company = 'Acme';
 ```
-http://YOUR_ORACLE_IP:5678/webhook/approve-and-send
-```
 
-Set `N8N_BASE_URL=http://YOUR_ORACLE_IP:5678` in Vercel so the dashboard can reach it.
+## n8n integration contract (unchanged)
 
-> If your Oracle Cloud IP is not publicly accessible, open port 5678 in your OCI Security List for your Vercel IP ranges, or use a Cloudflare Tunnel for secure exposure.
+Every call is `POST {N8N_BASE_URL}/webhook/<path>` with header `X-Webhook-Secret: <N8N_WEBHOOK_SECRET>`.
 
----
-
-### Step 5 — First Run Test
-
-1. Go to dashboard → **Runs** → click **⚡ Run Scraper**
-2. Wait ~2 minutes, then click **⚡ Run Processor**
-3. Check **Leads** — you should see scored leads appear
-4. Click **⚡ Generate Outreach** → leads should appear in **Outreach Queue**
-5. Review an email → edit if needed → **✓ Approve & Send**
-6. Reply to yourself from another email → within 30 min, lead status flips to **replied**
-
----
-
-## Environment Variables Reference
-
-| Variable | Where | Description |
+| Path | Called when | Body |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Vercel | Your Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel | Supabase anon key (safe to expose) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Vercel (server-only) | Service role key for admin ops |
-| `N8N_BASE_URL` | Vercel | URL to your n8n instance |
-| `N8N_WEBHOOK_SECRET` | Vercel + n8n | Shared secret for webhook auth |
-| `SUPABASE_URL` | n8n | Same as above |
-| `SUPABASE_SERVICE_ROLE_KEY` | n8n | Same as above |
-| `GROQ_API_KEY` | n8n | Groq API key |
-| `HUNTER_API_KEY` | n8n | Hunter.io API key |
+| `approve-and-send` | Approve & send in Outreach queue | `{ outreach_id, lead_id, approved_at }` |
+| `wf1-scraper` … `wf5-feedback` | "Run now" on the Workflows page | `{ triggered_by: "dashboard", timestamp }` |
 
----
+The approve flow sets the row to `approved` (with your edits) first. WF-3b then reads subject/body from that row. If n8n can't be reached, the row goes back to `pending_review` and the UI shows the error, so nothing is silently lost or double-sent.
 
-## Sending Limits (Default)
+Settings → Integrations shows live Supabase/n8n status. It never shows secret values.
 
-- 20 emails/day max
-- 2 emails/hour max
-- 5-minute minimum gap
-- Send window: 9am–5pm weekdays only
-- 4-touch sequence: Day 0, 7, 14, 21
+## Deploy (Vercel)
 
-Change these in **Settings → Sending Limits** from the dashboard.
-
----
-
-## Feedback Loop
-
-Every Sunday at 8pm, WF-5 exports outcome data (converted/replied/dead/bounced leads) into the `prompt_examples` table. These get injected as few-shot examples into future Groq prompts. Review the **Settings → Email Templates** view to see current prompts and adjust.
+1. Set the four environment variables above in **Project → Settings → Environment Variables**.
+2. Supabase → Authentication → URL Configuration: add `https://<your-domain>/auth/callback` to Redirect URLs.
+3. Deploy. `vercel.json` pins the region to `sin1`.

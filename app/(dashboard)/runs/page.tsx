@@ -1,198 +1,206 @@
 'use client'
-export const dynamic = 'force-dynamic'
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/Toast'
+import { Alert, EmptyState, PageHeader, SkeletonRows, Spinner, StatusBadge } from '@/components/ui'
+import { IconBolt, IconChevronRight, IconRefresh, IconWorkflow } from '@/components/icons'
+import { formatDateTime, timeAgo } from '@/lib/format'
+import { WORKFLOWS, triggerWorkflow, type WorkflowKey } from '@/lib/workflows'
 
 type LogRow = {
-  id: string
-  workflow_name: string
-  status: string
-  leads_scraped: number
-  leads_skipped: number
-  leads_scored: number
-  emails_sent: number
-  replies_detected: number
-  errors: Record<string, unknown>[] | null
-  started_at: string
-  finished_at: string | null
+  id: string; workflow_name: string; status: string
+  leads_scraped: number | null; leads_skipped: number | null; leads_scored: number | null
+  emails_sent: number | null; replies_detected: number | null
+  errors: unknown; started_at: string; finished_at: string | null
 }
 
-const WORKFLOW_LABELS: Record<string, { icon: string; color: string }> = {
-  'WF-1-Scraper':       { icon: '◈', color: 'var(--accent)' },
-  'WF-2-Processor':     { icon: '⚡', color: 'var(--info)' },
-  'WF-3-Outreach':      { icon: '✉', color: 'var(--warning)' },
-  'WF-4-ReplyMonitor':  { icon: '◎', color: 'var(--success)' },
-  'WF-5-Feedback':      { icon: '⟳', color: '#a78bfa' },
+function duration(start: string, end: string | null) {
+  if (!end) return 'Running…'
+  const ms = new Date(end).getTime() - new Date(start).getTime()
+  if (!Number.isFinite(ms) || ms < 0) return '—'
+  if (ms < 60000) return `${Math.round(ms / 1000)}s`
+  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`
+}
+
+function hasErrors(errors: unknown) {
+  if (!errors) return false
+  if (Array.isArray(errors)) return errors.length > 0
+  if (typeof errors === 'object') return Object.keys(errors as object).length > 0
+  return true
 }
 
 export default function RunsPage() {
+  const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
   const [logs, setLogs] = useState<LogRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [triggering, setTriggering] = useState('')
+  const [triggering, setTriggering] = useState<WorkflowKey | ''>('')
+  const [failures24h, setFailures24h] = useState(0)
+  const [lastResult, setLastResult] = useState<Record<string, { ok: boolean; at: string; error?: string }>>({})
 
-  const supabase = useMemo(() => createClient(), [])
-
-  const fetchLogs = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('workflow_logs')
-      .select('*')
-      .order('started_at', { ascending: false })
-      .limit(100)
-    setLogs((data as LogRow[]) || [])
+    const { data, error } = await supabase.from('workflow_logs').select('*').order('started_at', { ascending: false }).limit(100)
+    if (error) setError(error.message)
+    else {
+      setError('')
+      const rows = (data ?? []) as LogRow[]
+      const cutoff = Date.now() - 86400000
+      setLogs(rows)
+      setFailures24h(rows.filter(l => l.status === 'failed' && new Date(l.started_at).getTime() > cutoff).length)
+    }
     setLoading(false)
   }, [supabase])
 
-  useEffect(() => { fetchLogs() }, [fetchLogs])
-
-  async function triggerWorkflow(workflow: string) {
-    setTriggering(workflow)
-    try {
-      await fetch('/api/trigger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow })
-      })
-      // Also register in logs
-      await supabase.from('workflow_logs').insert([{
-        workflow_name: workflow,
-        status: 'success',
-        leads_scraped: workflow === 'WF-1-Scraper' ? Math.floor(Math.random() * 20) + 10 : 0,
-        leads_skipped: 0,
-        leads_scored: workflow === 'WF-2-Processor' ? Math.floor(Math.random() * 15) + 5 : 0,
-        emails_sent: workflow === 'WF-3-Outreach' ? Math.floor(Math.random() * 8) + 2 : 0,
-        replies_detected: workflow === 'WF-4-ReplyMonitor' ? 1 : 0,
-        errors: null,
-        started_at: new Date().toISOString(),
-        finished_at: new Date(Date.now() + 15000).toISOString()
-      }])
-    } finally {
-      setTimeout(() => {
-        setTriggering('')
-        fetchLogs()
-      }, 1000)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load
+    load()
+    const channel = supabase
+      .channel('runs-page')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'workflow_logs' }, () => load())
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
     }
+  }, [load, supabase])
+
+  async function run(key: WorkflowKey, label: string) {
+    setTriggering(key)
+    const res = await triggerWorkflow(key)
+    setTriggering('')
+    setLastResult(prev => ({ ...prev, [key]: { ok: res.ok, at: new Date().toISOString(), error: res.error } }))
+    if (res.ok) toast.success(`${label} started in n8n.`)
+    else toast.error(res.error ?? `Could not start ${label}.`)
   }
 
-  function duration(start: string, end: string | null) {
-    if (!end) return 'Running…'
-    const ms = new Date(end).getTime() - new Date(start).getTime()
-    if (ms < 60000) return `${Math.round(ms / 1000)}s`
-    return `${Math.round(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`
-  }
+  const lastRunByWorkflow = useMemo(() => {
+    const map: Record<string, LogRow> = {}
+    for (const l of logs) if (!map[l.workflow_name]) map[l.workflow_name] = l
+    return map
+  }, [logs])
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Run History</h1>
-          <p className="page-subtitle">Workflow execution logs and manual triggers</p>
+      <PageHeader
+        title="Workflows"
+        description="Trigger your n8n automations on demand and review their run history."
+        actions={
+          <button className="btn" onClick={load} disabled={loading}>
+            <IconRefresh className="icon" /> Refresh
+          </button>
+        }
+      />
+
+      {failures24h > 0 && (
+        <Alert tone="warn" title={`${failures24h} failed run${failures24h > 1 ? 's' : ''} in the last 24 hours`}>
+          Expand a failed run below to see the error reported by n8n.
+        </Alert>
+      )}
+
+      <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <div className="row-between" style={{ marginBottom: 14 }}>
+          <div>
+            <div className="card-title">Run a workflow</div>
+            <div className="card-desc">Sends a signed POST to the workflow&apos;s n8n webhook. Results show up below as n8n logs them.</div>
+          </div>
         </div>
-        <div className="page-actions">
-          <button className="btn btn-ghost btn-sm" onClick={fetchLogs}>↻ Refresh</button>
+        <div className="wf-grid">
+          {WORKFLOWS.map(w => {
+            const last = lastRunByWorkflow[w.key]
+            const result = lastResult[w.key]
+            return (
+              <div key={w.key} className="wf-card">
+                <div className="row-between">
+                  <span className="wf-name">{w.label}</span>
+                  <span className="tag mono" style={{ fontSize: 11 }}>{w.key.split('-').slice(0, 2).join('-')}</span>
+                </div>
+                <div className="wf-desc">{w.description}</div>
+                <div className="hint">
+                  {result && !result.ok ? (
+                    <span className="overdue">{result.error}</span>
+                  ) : last ? (
+                    <>Last logged run {timeAgo(last.started_at)} · <StatusBadge status={last.status} plain /></>
+                  ) : (
+                    'No runs logged yet'
+                  )}
+                </div>
+                <button className="btn btn-sm" onClick={() => run(w.key, w.label)} disabled={!!triggering}>
+                  {triggering === w.key ? <Spinner /> : <IconBolt className="icon" />}
+                  {triggering === w.key ? 'Starting…' : 'Run now'}
+                </button>
+              </div>
+            )
+          })}
         </div>
       </div>
 
-      {/* Manual Triggers */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h3 style={{ marginBottom: '1rem' }}>Manual Triggers</h3>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {[
-            { key: 'WF-1-Scraper', label: 'Run Scraper' },
-            { key: 'WF-2-Processor', label: 'Run Processor' },
-            { key: 'WF-3-Outreach', label: 'Generate Outreach' },
-            { key: 'WF-4-ReplyMonitor', label: 'Check Replies' },
-            { key: 'WF-5-Feedback', label: 'Run Feedback Loop' },
-          ].map(w => (
-            <button
-              key={w.key}
-              className="btn btn-ghost btn-sm"
-              onClick={() => triggerWorkflow(w.key)}
-              disabled={!!triggering}
-              id={`trigger-${w.key.toLowerCase().replace(/-/g, '-')}`}
-            >
-              {triggering === w.key ? '⏳ Triggering…' : `⚡ ${w.label}`}
-            </button>
-          ))}
-        </div>
-      </div>
+      {error && <Alert title="Could not load run history">{error}</Alert>}
 
-      {/* Logs Table */}
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">Run history</div>
+            <div className="card-desc">Rows written by n8n to the workflow_logs table</div>
+          </div>
+        </div>
         <div className="table-wrap">
-          <table>
+          <table className="table">
             <thead>
               <tr>
+                <th style={{ width: 28 }} />
                 <th>Workflow</th>
                 <th>Status</th>
-                <th>Scraped</th>
-                <th>Skipped</th>
-                <th>Scored</th>
-                <th>Emails Sent</th>
+                <th className="t-right">Scraped</th>
+                <th className="t-right">Scored</th>
+                <th className="t-right">Sent</th>
+                <th className="t-right">Replies</th>
                 <th>Duration</th>
-                <th>Started</th>
-                <th></th>
+                <th className="t-right">Started</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                Array(6).fill(0).map((_, i) => (
-                  <tr key={i}>{Array(9).fill(0).map((_, j) => (
-                    <td key={j}><div className="skeleton" style={{ height: 16, width: j === 0 ? 140 : 50 }} /></td>
-                  ))}</tr>
-                ))
+              {loading && logs.length === 0 ? (
+                <SkeletonRows rows={6} cols={9} />
               ) : logs.length === 0 ? (
-                <tr><td colSpan={9}>
-                  <div className="empty-state">
-                    <div className="empty-state-icon">⚡</div>
-                    <div className="empty-state-title">No runs yet</div>
-                    <p style={{ fontSize: '0.875rem' }}>Trigger a workflow above to see logs here.</p>
-                  </div>
-                </td></tr>
-              ) : logs.map(log => {
-                const wf = WORKFLOW_LABELS[log.workflow_name] || { icon: '●', color: 'var(--text-muted)' }
-                const hasErrors = log.errors && (Array.isArray(log.errors) ? log.errors.length > 0 : Object.keys(log.errors).length > 0)
-                return (
-                  <>
-                    <tr key={log.id} onClick={() => setExpanded(expanded === log.id ? null : log.id)}>
-                      <td>
-                        <span style={{ color: wf.color, marginRight: '0.5rem' }}>{wf.icon}</span>
-                        <span style={{ fontWeight: 500, fontSize: '0.875rem' }}>{log.workflow_name}</span>
-                      </td>
-                      <td>
-                        <span className={`badge ${log.status === 'success' ? 'badge-replied' : log.status === 'failed' ? 'badge-danger' : 'badge-pending'}`}>
-                          {log.status}
-                        </span>
-                      </td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>{log.leads_scraped ?? '—'}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem', color: 'var(--text-muted)' }}>{log.leads_skipped ?? '—'}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>{log.leads_scored ?? '—'}</td>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>{log.emails_sent ?? '—'}</td>
-                      <td style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{duration(log.started_at, log.finished_at)}</td>
-                      <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        {new Date(log.started_at).toLocaleString()}
-                      </td>
-                      <td>
-                        {hasErrors && (
-                          <span className="badge badge-danger" style={{ cursor: 'pointer' }}>
-                            {expanded === log.id ? '▲' : '▼'} Errors
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                    {expanded === log.id && hasErrors && (
-                      <tr key={`${log.id}-expanded`}>
-                        <td colSpan={9} style={{ background: 'var(--bg-base)', padding: '1rem 1.5rem' }}>
-                          <pre style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--danger)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                            {JSON.stringify(log.errors, null, 2)}
-                          </pre>
+                <tr>
+                  <td colSpan={9}>
+                    <EmptyState icon={<IconWorkflow />} title="No runs logged yet" text="Runs appear here once an n8n workflow writes to workflow_logs." />
+                  </td>
+                </tr>
+              ) : (
+                logs.map(log => {
+                  const errs = hasErrors(log.errors)
+                  const open = expanded === log.id
+                  return (
+                    <Fragment key={log.id}>
+                      <tr className={errs ? 'clickable' : ''} onClick={() => errs && setExpanded(open ? null : log.id)}>
+                        <td>
+                          {errs && (
+                            <IconChevronRight width={14} height={14} style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform .15s', color: 'var(--text-tertiary)' }} />
+                          )}
                         </td>
+                        <td className="cell-title">{log.workflow_name}</td>
+                        <td><StatusBadge status={log.status} /></td>
+                        <td className="t-right num">{log.leads_scraped ?? 0}</td>
+                        <td className="t-right num">{log.leads_scored ?? 0}</td>
+                        <td className="t-right num">{log.emails_sent ?? 0}</td>
+                        <td className="t-right num">{log.replies_detected ?? 0}</td>
+                        <td className="subtle">{duration(log.started_at, log.finished_at)}</td>
+                        <td className="t-right subtle" style={{ whiteSpace: 'nowrap' }}>{formatDateTime(log.started_at)}</td>
                       </tr>
-                    )}
-                  </>
-                )
-              })}
+                      {open && (
+                        <tr>
+                          <td colSpan={9} style={{ background: 'var(--bg-subtle)' }}>
+                            <pre className="pre">{JSON.stringify(log.errors, null, 2)}</pre>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })
+              )}
             </tbody>
           </table>
         </div>

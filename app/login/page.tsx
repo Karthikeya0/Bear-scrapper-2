@@ -1,124 +1,123 @@
 'use client'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Alert, Spinner } from '@/components/ui'
+import { IconArrowRight, IconCheck, IconMail } from '@/components/icons'
 
-export default function LoginPage() {
+function LoginForm() {
+  const params = useSearchParams()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(params.get('error') ?? '')
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+    const next = params.get('next')
+    const callback = new URL('/auth/callback', window.location.origin)
+    if (next && next.startsWith('/') && !next.startsWith('//')) callback.searchParams.set('next', next)
+
+    const { error } = await createClient().auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: callback.toString() },
     })
 
-    if (error) {
-      setError(error.message)
-    } else {
-      setSent(true)
-    }
+    if (error) setError(error.message)
+    else setSent(true)
     setLoading(false)
   }
 
+  if (sent) {
+    return (
+      <div className="fade-in">
+        <div className="stat-icon" style={{ width: 44, height: 44, marginBottom: 18 }}>
+          <IconMail />
+        </div>
+        <h2>Check your inbox</h2>
+        <p className="page-desc" style={{ marginTop: 8 }}>
+          We sent a sign-in link to <strong style={{ color: 'var(--text)' }}>{email}</strong>. It expires in one hour.
+        </p>
+        <button className="btn btn-block" style={{ marginTop: 24 }} onClick={() => setSent(false)}>
+          Use a different email
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
-      {/* Left Side: Cinematic Branding */}
-      <div className="section-dark" style={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        justifyContent: 'center',
-        padding: '6rem 4rem'
-      }}>
-        <div className="fade-in" style={{ maxWidth: '600px', margin: '0 auto' }}>
-          <span className="micro-label" style={{ marginBottom: '2rem' }}>PORTAL ACCESS</span>
-          <h1 style={{ fontSize: 'clamp(4rem, 8vw, 6rem)', lineHeight: 0.9, marginBottom: '2rem' }}>
-            BEAR<br/>STUDIOS
-          </h1>
-          <p className="text-muted" style={{ fontSize: '1.25rem', maxWidth: '400px', marginBottom: '3rem' }}>
-            Client management and operational control center.
-          </p>
-          
-          {/* Decorative Ring */}
-          <div className="stat-ring-container" style={{ width: '80px', height: '80px', marginBottom: '0' }}>
-            <svg className="stat-ring" viewBox="0 0 100 100">
-              <circle className="stat-ring-bg" cx="50" cy="50" r="45" />
-              <circle className="stat-ring-progress" cx="50" cy="50" r="45" style={{ strokeDasharray: 283, strokeDashoffset: 100 }} />
-            </svg>
-            <div className="stat-value" style={{ fontSize: '1.5rem' }}>01</div>
+    <form onSubmit={handleLogin} className="fade-in">
+      <div className="brand-mark" style={{ marginBottom: 22 }}>B</div>
+      <h2>Sign in to Bear Studios</h2>
+      <p className="page-desc" style={{ marginTop: 6, marginBottom: 26 }}>
+        Enter your work email and we&apos;ll send you a secure magic link.
+      </p>
+
+      {error && <Alert tone="error">{error}</Alert>}
+
+      <div className="field">
+        <label className="label" htmlFor="email">Email address</label>
+        <input
+          id="email"
+          type="email"
+          className="input"
+          placeholder="you@company.com"
+          autoComplete="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          required
+          autoFocus
+        />
+      </div>
+
+      <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={loading || !email.trim()}>
+        {loading ? <Spinner /> : null}
+        {loading ? 'Sending link…' : 'Continue with email'}
+        {!loading && <IconArrowRight className="icon" />}
+      </button>
+      <p className="hint" style={{ marginTop: 16, textAlign: 'center' }}>
+        New accounts need to be approved by a studio owner.
+      </p>
+    </form>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <div className="auth">
+      <aside className="auth-aside">
+        <div className="row">
+          <div className="brand-mark">B</div>
+          <span style={{ fontWeight: 600, color: '#fafafa' }}>Bear Studios</span>
+        </div>
+        <div>
+          <h1>The operating system for your studio.</h1>
+          <p>Find and qualify leads, review AI-written outreach, and keep every client project on track — in one place.</p>
+          <div className="auth-points">
+            {[
+              'Automated lead scraping & AI scoring via n8n',
+              'Human-in-the-loop email approval',
+              'Client portal & production board',
+            ].map(t => (
+              <div key={t} className="auth-point">
+                <IconCheck />
+                {t}
+              </div>
+            ))}
           </div>
         </div>
-      </div>
-
-      {/* Right Side: Login Form */}
-      <div className="section-light" style={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: '2rem'
-      }}>
-        <div className="fade-in" style={{ width: '100%', maxWidth: '360px', animationDelay: '0.2s' }}>
-          
-          {sent ? (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>✉️</div>
-              <h3 style={{ marginBottom: '1rem', color: 'var(--text-on-light)' }}>Check your email</h3>
-              <p className="text-muted" style={{ fontSize: '1rem', lineHeight: 1.6 }}>
-                We've sent a magic link to<br/>
-                <strong style={{ color: 'var(--text-on-light)' }}>{email}</strong>
-              </p>
-            </div>
-          ) : (
-            <form onSubmit={handleLogin}>
-              <h3 style={{ marginBottom: '0.5rem', color: 'var(--text-on-light)' }}>Sign In</h3>
-              <p className="text-muted" style={{ marginBottom: '3rem', fontSize: '0.875rem' }}>
-                Enter your email to receive a secure login link.
-              </p>
-
-              <div className="form-group" style={{ marginBottom: '2.5rem' }}>
-                <label className="form-label" htmlFor="email">Email address</label>
-                <input
-                  id="email"
-                  type="email"
-                  className="form-input"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-
-              {error && (
-                <div style={{ color: 'var(--status-negative)', fontSize: '0.875rem', marginBottom: '1.5rem', border: '1px solid currentColor', padding: '0.75rem', borderRadius: '4px' }}>
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={loading || !email}
-                style={{ width: '100%' }}
-              >
-                {loading ? 'SENDING...' : 'SEND MAGIC LINK →'}
-              </button>
-            </form>
-          )}
-
+        <div style={{ fontSize: 12.5, color: '#71717a' }}>© {new Date().getFullYear()} Bear Studios</div>
+      </aside>
+      <main className="auth-main">
+        <div className="auth-card">
+          <Suspense fallback={<div className="skeleton" style={{ height: 280 }} />}>
+            <LoginForm />
+          </Suspense>
         </div>
-      </div>
+      </main>
     </div>
   )
 }

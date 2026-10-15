@@ -1,389 +1,497 @@
 'use client'
-import { useEffect, useState, use } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/Toast'
+import { Alert, Badge, Drawer, EmptyState, PageHeader, Spinner, StatusBadge } from '@/components/ui'
+import { IconArrowLeft, IconExternal, IconFile, IconKanban, IconMessage, IconPlus } from '@/components/icons'
+import { formatDate, formatDateTime, formatDay, formatMoney, humanize, isOverdue } from '@/lib/format'
 
-export default function ClientProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
-  const [client, setClient] = useState<any>(null)
-  const [projects, setProjects] = useState<any[]>([])
-  const [comms, setComms] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [notes, setNotes] = useState('')
-  const [savingNotes, setSavingNotes] = useState(false)
-  const [savedNotesToast, setSavedNotesToast] = useState(false)
-  const [activeTab, setActiveTab] = useState<'projects' | 'comms' | 'notes'>('projects')
+type Client = {
+  id: string; company: string; contact_name: string | null; contact_email: string | null; status: string
+  monthly_value: number | null; currency: string | null; contract_notes: string | null; portal_user_id: string | null; created_at: string
+}
+type Project = { id: string; title: string; description: string | null; status: string; priority: string; deadline: string | null; created_at: string }
+type Comm = { id: string; channel: string; direction: string; subject: string | null; body: string; created_at: string }
+type Deliverable = { id: string; title: string; file_url: string; status: string; notes: string | null; project_id: string | null; created_at: string }
+type Tab = 'projects' | 'deliverables' | 'comms' | 'notes'
 
-  // New Project Drawer
-  const [projDrawerOpen, setProjDrawerOpen] = useState(false)
-  const [projTitle, setProjTitle] = useState('')
-  const [projDescription, setProjDescription] = useState('')
-  const [projPriority, setProjPriority] = useState('high')
-  const [projStatus, setProjStatus] = useState('in_progress')
-  const [projDeadline, setProjDeadline] = useState('')
-  const [creatingProj, setCreatingProj] = useState(false)
+const PROJECT_EMPTY = { id: '', title: '', description: '', status: 'todo', priority: 'medium', deadline: '' }
+const COMM_EMPTY = { channel: 'email', direction: 'outbound', subject: '', body: '' }
+const DELIV_EMPTY = { title: '', file_url: '', project_id: '', notes: '' }
 
-  // New Comm Drawer
-  const [commDrawerOpen, setCommDrawerOpen] = useState(false)
-  const [commChannel, setCommChannel] = useState('email')
-  const [commDirection, setCommDirection] = useState('outbound')
-  const [commBody, setCommBody] = useState('')
-  const [savingComm, setSavingComm] = useState(false)
-
-  const supabase = createClient()
-
-  const fetchAll = async () => {
-    setLoading(true)
-    const [{ data: c }, { data: p }, { data: co }] = await Promise.all([
-      supabase.from('clients').select('*').eq('id', id).single(),
-      supabase.from('projects').select('*').eq('client_id', id).order('created_at', { ascending: false }),
-      supabase.from('communications').select('*').eq('client_id', id).order('created_at', { ascending: false })
-    ])
-    setClient(c)
-    setNotes(c?.contract_notes || '')
-    setProjects(p || [])
-    setComms(co || [])
-    setLoading(false)
+function safeUrl(value: string) {
+  try {
+    const u = new URL(value)
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.toString() : null
+  } catch {
+    return null
   }
+}
+
+export default function ClientDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
+
+  const [client, setClient] = useState<Client | null>(null)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [comms, setComms] = useState<Comm[]>([])
+  const [deliverables, setDeliverables] = useState<Deliverable[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [tab, setTab] = useState<Tab>('projects')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const [projectForm, setProjectForm] = useState<typeof PROJECT_EMPTY | null>(null)
+  const [commForm, setCommForm] = useState<typeof COMM_EMPTY | null>(null)
+  const [delivForm, setDelivForm] = useState<typeof DELIV_EMPTY | null>(null)
+  const [clientForm, setClientForm] = useState<Client | null>(null)
+
+  const load = useCallback(async () => {
+    const [c, p, co, d] = await Promise.all([
+      supabase.from('clients').select('*').eq('id', id).maybeSingle(),
+      supabase.from('projects').select('*').eq('client_id', id).order('created_at', { ascending: false }),
+      supabase.from('communications').select('*').eq('client_id', id).order('created_at', { ascending: false }),
+      supabase.from('deliverables').select('*').eq('client_id', id).order('created_at', { ascending: false }),
+    ])
+    const firstError = [c, p, co, d].find(r => r.error)?.error
+    setError(firstError?.message ?? '')
+    setClient((c.data as Client) ?? null)
+    setNotes((c.data as Client | null)?.contract_notes ?? '')
+    setProjects((p.data ?? []) as Project[])
+    setComms((co.data ?? []) as Comm[])
+    setDeliverables((d.data ?? []) as Deliverable[])
+    setLoading(false)
+  }, [id, supabase])
 
   useEffect(() => {
-    fetchAll()
-  }, [id])
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load
+    load()
+  }, [load])
 
-  const saveNotes = async () => {
-    setSavingNotes(true)
-    await supabase.from('clients').update({ contract_notes: notes }).eq('id', id)
-    setSavingNotes(false)
-    setSavedNotesToast(true)
-    setTimeout(() => setSavedNotesToast(false), 3000)
+  async function run(op: PromiseLike<{ error: { message: string } | null }>, ok: string) {
+    setSaving(true)
+    const { error } = await op
+    setSaving(false)
+    if (error) {
+      toast.error(error.message)
+      return false
+    }
+    toast.success(ok)
+    load()
+    return true
   }
 
-  const handleCreateProject = async (e: React.FormEvent) => {
+  async function saveProject(e: React.FormEvent) {
     e.preventDefault()
-    if (!projTitle.trim()) return
-    setCreatingProj(true)
-
-    await supabase.from('projects').insert([{
+    if (!projectForm?.title.trim()) return
+    const row = {
       client_id: id,
-      title: projTitle.trim(),
-      description: projDescription.trim(),
-      priority: projPriority,
-      status: projStatus,
-      deadline: projDeadline || null,
-      clients: { company: client?.company || '' }
-    }])
-
-    setCreatingProj(false)
-    setProjDrawerOpen(false)
-    setProjTitle('')
-    setProjDescription('')
-    setProjDeadline('')
-    fetchAll()
+      title: projectForm.title.trim(),
+      description: projectForm.description.trim() || null,
+      status: projectForm.status,
+      priority: projectForm.priority,
+      deadline: projectForm.deadline || null,
+    }
+    const ok = await run(
+      projectForm.id
+        ? supabase.from('projects').update({ ...row, updated_at: new Date().toISOString() }).eq('id', projectForm.id)
+        : supabase.from('projects').insert(row),
+      projectForm.id ? 'Project updated.' : 'Project created.',
+    )
+    if (ok) setProjectForm(null)
   }
 
-  const handleLogComm = async (e: React.FormEvent) => {
+  async function saveComm(e: React.FormEvent) {
     e.preventDefault()
-    if (!commBody.trim()) return
-    setSavingComm(true)
-
-    await supabase.from('communications').insert([{
-      client_id: id,
-      channel: commChannel,
-      direction: commDirection,
-      body: commBody.trim(),
-    }])
-
-    setSavingComm(false)
-    setCommDrawerOpen(false)
-    setCommBody('')
-    fetchAll()
+    if (!commForm?.body.trim()) return
+    const { data: auth } = await supabase.auth.getUser()
+    const ok = await run(
+      supabase.from('communications').insert({
+        client_id: id,
+        author_id: auth.user?.id ?? null,
+        channel: commForm.channel,
+        direction: commForm.direction,
+        subject: commForm.subject.trim() || null,
+        body: commForm.body.trim(),
+      }),
+      'Interaction logged.',
+    )
+    if (ok) setCommForm(null)
   }
 
-  const statusClass = (s: string) => {
-    const m: Record<string, string> = { todo: 'badge-default', in_progress: 'badge-blue', review: 'badge-yellow', delivered: 'badge-green' }
-    return `badge ${m[s] || 'badge-default'}`
+  async function saveDeliverable(e: React.FormEvent) {
+    e.preventDefault()
+    if (!delivForm) return
+    if (!safeUrl(delivForm.file_url.trim())) {
+      toast.error('Enter a valid http(s) link to the file (e.g. Google Drive, Frame.io, Dropbox).')
+      return
+    }
+    const ok = await run(
+      supabase.from('deliverables').insert({
+        client_id: id,
+        project_id: delivForm.project_id || null,
+        title: delivForm.title.trim(),
+        file_url: delivForm.file_url.trim(),
+        notes: delivForm.notes.trim() || null,
+        status: 'review',
+      }),
+      'Deliverable shared with the client portal.',
+    )
+    if (ok) setDelivForm(null)
   }
 
-  const clientStatusClass = (s: string) => {
-    const m: Record<string, string> = { active: 'badge-green', lead: 'badge-yellow', past: 'badge-default' }
-    return `badge ${m[s] || 'badge-default'}`
+  async function saveClient(e: React.FormEvent) {
+    e.preventDefault()
+    if (!clientForm?.company.trim()) return
+    const ok = await run(
+      supabase
+        .from('clients')
+        .update({
+          company: clientForm.company.trim(),
+          contact_name: clientForm.contact_name?.trim() || null,
+          contact_email: clientForm.contact_email?.trim() || null,
+          status: clientForm.status,
+          monthly_value: clientForm.monthly_value === null || String(clientForm.monthly_value) === '' ? null : Number(clientForm.monthly_value),
+          currency: clientForm.currency || 'USD',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id),
+      'Client updated.',
+    )
+    if (ok) setClientForm(null)
   }
 
-  if (loading) return (
-    <>
-      <div className="page-header"><div className="page-title">Loading…</div></div>
-      <div className="page-body"><div className="skeleton" style={{ height: 200 }} /></div>
-    </>
+  const back = (
+    <Link href="/clients" className="back-link"><IconArrowLeft width={14} height={14} /> Clients</Link>
   )
 
-  if (!client) return (
-    <>
-      <div className="page-header"><div className="page-title">Client not found</div></div>
-      <div className="page-body"><Link href="/clients" className="btn btn-default">← Back to clients</Link></div>
-    </>
-  )
+  if (loading) {
+    return (
+      <div className="stack">
+        <div className="skeleton" style={{ height: 56, width: 320 }} />
+        <div className="stats">{[0, 1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 96, borderRadius: 14 }} />)}</div>
+        <div className="skeleton" style={{ height: 280, borderRadius: 14 }} />
+      </div>
+    )
+  }
+
+  if (!client) {
+    return (
+      <>
+        <PageHeader title="Client not found" back={back} />
+        {error ? <Alert>{error}</Alert> : <div className="card"><EmptyState title="This client doesn't exist or was removed." /></div>}
+      </>
+    )
+  }
+
+  const openProjects = projects.filter(p => p.status !== 'delivered').length
+  const TABS: { key: Tab; label: string; count?: number }[] = [
+    { key: 'projects', label: 'Projects', count: projects.length },
+    { key: 'deliverables', label: 'Deliverables', count: deliverables.length },
+    { key: 'comms', label: 'Communication', count: comms.length },
+    { key: 'notes', label: 'Notes & scope' },
+  ]
 
   return (
     <>
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link href="/clients" className="btn btn-ghost btn-sm" style={{ padding: '4px 8px' }}>← Back</Link>
-          <div>
-            <div className="page-title">{client.company}</div>
-            <div className="page-subtitle">{client.contact_email || 'No email associated'}</div>
-          </div>
-        </div>
-        <div className="page-actions">
-          <span className={clientStatusClass(client.status)}>
-            <span className="badge-dot" />{client.status}
-          </span>
-          <button onClick={() => setProjDrawerOpen(true)} className="btn btn-primary btn-sm">
-            + New Project
-          </button>
+      <PageHeader
+        back={back}
+        title={client.company}
+        description={client.contact_email || 'No contact email'}
+        actions={
+          <>
+            <StatusBadge status={client.status} />
+            <button className="btn" onClick={() => setClientForm({ ...client })}>Edit</button>
+            <button className="btn btn-primary" onClick={() => setProjectForm({ ...PROJECT_EMPTY })}><IconPlus className="icon" /> New project</button>
+          </>
+        }
+      />
+
+      {error && <Alert title="Some data could not be loaded">{error}</Alert>}
+
+      <div className="stats">
+        <div className="stat"><div className="stat-label">Primary contact</div><div style={{ fontWeight: 600, marginTop: 10 }}>{client.contact_name || '—'}</div></div>
+        <div className="stat"><div className="stat-label">Open projects</div><div className="stat-value" style={{ marginTop: 10 }}>{openProjects}</div></div>
+        <div className="stat"><div className="stat-label">Monthly value</div><div className="stat-value" style={{ marginTop: 10, fontSize: 24 }}>{formatMoney(client.monthly_value, client.currency ?? 'USD')}</div></div>
+        <div className="stat">
+          <div className="stat-label">Client portal</div>
+          <div style={{ marginTop: 10 }}>{client.portal_user_id ? <Badge tone="green">Linked</Badge> : <Badge tone="amber">Not linked</Badge>}</div>
+          <div className="stat-hint">Since {formatDate(client.created_at, { month: 'short', year: 'numeric' })}</div>
         </div>
       </div>
 
-      <div className="page-body fade-in">
-        {/* Quick info cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
-          {[
-            { label: 'Primary Contact', value: client.contact_name || '—' },
-            { label: 'Active Projects', value: projects.length },
-            { label: 'Monthly Retainer', value: client.monthly_value ? `$${client.monthly_value} ${client.currency || 'USD'}` : '—' },
-            { label: 'Client Since', value: new Date(client.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) },
-          ].map(s => (
-            <div key={s.label} className="card card-body" style={{ padding: '14px 16px' }}>
-              <div className="text-xs text-subtle" style={{ marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontWeight: 600 }}>{s.value}</div>
-            </div>
-          ))}
-        </div>
+      <div className="tabs" role="tablist">
+        {TABS.map(t => (
+          <button key={t.key} role="tab" aria-selected={tab === t.key} className={`tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            {t.label}
+            {t.count !== undefined && <span className="tab-count">{t.count}</span>}
+          </button>
+        ))}
+      </div>
 
-        {/* Tabs */}
-        <div className="tabs">
-          {(['projects', 'comms', 'notes'] as const).map(t => (
-            <button key={t} className={`tab-btn ${activeTab === t ? 'active' : ''}`} onClick={() => setActiveTab(t)}>
-              {t === 'projects' ? `Projects (${projects.length})` : t === 'comms' ? `Communication (${comms.length})` : 'Notes & Scope'}
-            </button>
-          ))}
-        </div>
-
-        {/* Projects tab */}
-        {activeTab === 'projects' && (
-          <div className="card" style={{ padding: 0 }}>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Status</th>
-                    <th>Priority</th>
-                    <th>Deadline</th>
-                    <th>Created</th>
+      {tab === 'projects' && (
+        <div className="card">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr><th>Project</th><th>Status</th><th>Priority</th><th className="t-right">Deadline</th></tr>
+              </thead>
+              <tbody>
+                {projects.length === 0 ? (
+                  <tr><td colSpan={4}>
+                    <EmptyState icon={<IconKanban />} title="No projects yet" text="Create a project to track scope, deadlines and tasks."
+                      action={<button className="btn btn-primary" onClick={() => setProjectForm({ ...PROJECT_EMPTY })}><IconPlus className="icon" /> New project</button>} />
+                  </td></tr>
+                ) : projects.map(p => (
+                  <tr key={p.id} className="clickable" onClick={() => setProjectForm({ id: p.id, title: p.title, description: p.description ?? '', status: p.status, priority: p.priority, deadline: p.deadline ?? '' })}>
+                    <td>
+                      <div className="cell-title">{p.title}</div>
+                      {p.description && <div className="cell-sub truncate" style={{ maxWidth: 420 }}>{p.description}</div>}
+                    </td>
+                    <td><StatusBadge status={p.status} /></td>
+                    <td><StatusBadge status={p.priority} plain /></td>
+                    <td className={`t-right num ${p.status !== 'delivered' && isOverdue(p.deadline) ? 'overdue' : 'subtle'}`}>{formatDay(p.deadline)}</td>
                   </tr>
-                </thead>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'deliverables' && (
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <div className="card-title">Shared files</div>
+              <div className="card-desc">Visible to the client in their portal, where they can approve or request revisions.</div>
+            </div>
+            <button className="btn btn-sm" onClick={() => setDelivForm({ ...DELIV_EMPTY })}><IconPlus className="icon" /> Share file</button>
+          </div>
+          {deliverables.length === 0 ? (
+            <EmptyState icon={<IconFile />} title="Nothing shared yet" text="Share a link to a cut, deck or asset for client review." />
+          ) : (
+            <div className="table-wrap">
+              <table className="table">
                 <tbody>
-                  {projects.length === 0 ? (
-                    <tr><td colSpan={5}>
-                      <div className="empty-state">
-                        <div className="empty-state-title">No projects yet</div>
-                        <p>Click &quot;+ New Project&quot; above to add a project.</p>
-                      </div>
-                    </td></tr>
-                  ) : projects.map(p => (
-                    <tr key={p.id}>
-                      <td style={{ fontWeight: 500 }}>{p.title}</td>
-                      <td><span className={statusClass(p.status)}><span className="badge-dot" />{p.status.replace('_', ' ')}</span></td>
-                      <td><span className={`badge ${p.priority === 'urgent' ? 'badge-red' : p.priority === 'high' ? 'badge-yellow' : 'badge-default'}`}>{p.priority}</span></td>
-                      <td className="text-sm font-mono text-subtle">{p.deadline ? new Date(p.deadline).toLocaleDateString() : '—'}</td>
-                      <td className="text-sm font-mono text-subtle">{new Date(p.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
+                  {deliverables.map(d => {
+                    const url = safeUrl(d.file_url)
+                    return (
+                      <tr key={d.id}>
+                        <td>
+                          <div className="cell-title">{d.title}</div>
+                          {d.notes && <div className="cell-sub">{d.notes}</div>}
+                        </td>
+                        <td><StatusBadge status={d.status} /></td>
+                        <td className="subtle">{formatDate(d.created_at)}</td>
+                        <td className="t-right">
+                          {url && <a className="btn btn-sm btn-ghost" href={url} target="_blank" rel="noopener noreferrer">Open <IconExternal className="icon" /></a>}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
-        {/* Comms tab */}
-        {activeTab === 'comms' && (
-          <div className="card" style={{ padding: 0 }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="text-xs font-semibold text-subtle uppercase">History Log</span>
-              <button onClick={() => setCommDrawerOpen(true)} className="btn btn-default btn-sm">
-                + Log Interaction
-              </button>
+      {tab === 'comms' && (
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <div className="card-title">Communication log</div>
+              <div className="card-desc">Emails, calls, notes and portal messages.</div>
             </div>
-            {comms.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-title">No communications logged</div>
-                <p>Log emails, calls, or client feedback here.</p>
-              </div>
-            ) : comms.map(c => (
-              <div key={c.id} style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
-                <div className="flex items-center justify-between" style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className={`badge ${c.direction === 'inbound' ? 'badge-blue' : c.direction === 'outbound' ? 'badge-green' : 'badge-default'}`}>
-                      {c.direction === 'inbound' ? '↓ from client' : c.direction === 'outbound' ? '↑ to client' : '• note'}
-                    </span>
-                    <span className="text-xs text-subtle">via {c.channel}</span>
+            <button className="btn btn-sm" onClick={() => setCommForm({ ...COMM_EMPTY })}><IconPlus className="icon" /> Log interaction</button>
+          </div>
+          {comms.length === 0 ? (
+            <EmptyState icon={<IconMessage />} title="No communication logged" text="Keep a record of every client touchpoint here." />
+          ) : (
+            <div className="card-pad timeline">
+              {comms.map(c => (
+                <div key={c.id} className="tl-item">
+                  <div className="tl-dot"><IconMessage /></div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="row" style={{ flexWrap: 'wrap' }}>
+                      <Badge tone={c.direction === 'inbound' ? 'blue' : c.direction === 'outbound' ? 'green' : 'gray'} plain>
+                        {c.direction === 'inbound' ? 'From client' : c.direction === 'outbound' ? 'To client' : 'Internal'}
+                      </Badge>
+                      <span className="tag">{c.channel}</span>
+                      <span className="tl-time">{formatDateTime(c.created_at)}</span>
+                    </div>
+                    {c.subject && <div className="tl-title" style={{ marginTop: 6 }}>{c.subject}</div>}
+                    <p className="prose" style={{ marginTop: 4 }}>{c.body}</p>
                   </div>
-                  <span className="text-xs font-mono text-subtle">{new Date(c.created_at).toLocaleString()}</span>
                 </div>
-                {c.subject && <div style={{ fontWeight: 500, marginBottom: 4 }}>{c.subject}</div>}
-                <p style={{ fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>{c.body}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Notes tab */}
-        {activeTab === 'notes' && (
-          <div className="card card-body">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div>
-                <span className="text-sm font-medium" style={{ fontWeight: 600 }}>Contract &amp; Scope Details</span>
-                <div className="text-xs text-subtle">Shared reference notes for team deliverables</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {savedNotesToast && <span style={{ color: 'var(--accent)', fontSize: '0.8rem', fontWeight: 600 }}>✓ Saved!</span>}
-                <button onClick={saveNotes} disabled={savingNotes} className="btn btn-primary btn-sm">
-                  {savingNotes ? 'Saving…' : 'Save Notes'}
-                </button>
-              </div>
+              ))}
             </div>
-            <textarea
-              className="form-textarea"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Add contract details, monthly retainer terms, design preferences, deliverables scope…"
-              style={{ minHeight: 320 }}
-            />
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      {/* New Project Modal */}
-      {projDrawerOpen && (
-        <div className="drawer-overlay" onClick={() => setProjDrawerOpen(false)}>
-          <div className="drawer-panel" onClick={e => e.stopPropagation()}>
-            <div className="drawer-header">
-              <div className="drawer-title">Add Project for {client.company}</div>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setProjDrawerOpen(false)}>×</button>
-            </div>
-            <form onSubmit={handleCreateProject} className="drawer-body">
-              <div className="form-group">
-                <label className="form-label">Project Title</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. Q4 Brand Refresh"
-                  value={projTitle}
-                  onChange={e => setProjTitle(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Scope Description</label>
-                <textarea
-                  className="form-textarea"
-                  placeholder="Deliverables, target formats, asset specs..."
-                  value={projDescription}
-                  onChange={e => setProjDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="form-group">
-                  <label className="form-label">Status</label>
-                  <select className="form-input" value={projStatus} onChange={e => setProjStatus(e.target.value)}>
-                    <option value="todo">To Do</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="review">Review</option>
-                    <option value="delivered">Delivered</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Priority</label>
-                  <select className="form-input" value={projPriority} onChange={e => setProjPriority(e.target.value)}>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Deadline</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={projDeadline}
-                  onChange={e => setProjDeadline(e.target.value)}
-                />
-              </div>
-              <div className="drawer-footer" style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <button type="button" className="btn btn-default" onClick={() => setProjDrawerOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={creatingProj || !projTitle.trim()}>
-                  {creatingProj ? 'Saving…' : 'Create Project'}
-                </button>
-              </div>
-            </form>
+      {tab === 'notes' && (
+        <div className="card card-pad" style={{ maxWidth: 860 }}>
+          <div className="card-title">Contract & scope</div>
+          <div className="card-desc" style={{ marginBottom: 12 }}>Retainer terms, deliverable scope and preferences. Internal only.</div>
+          <textarea className="textarea" style={{ minHeight: 280 }} value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. 4 deliverables / month, bi-weekly review calls…" />
+          <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10 }}>
+            <button className="btn btn-primary" disabled={saving || notes === (client.contract_notes ?? '')}
+              onClick={() => run(supabase.from('clients').update({ contract_notes: notes, updated_at: new Date().toISOString() }).eq('id', id), 'Notes saved.')}>
+              {saving && <Spinner />} Save notes
+            </button>
           </div>
         </div>
       )}
 
-      {/* Log Interaction Modal */}
-      {commDrawerOpen && (
-        <div className="drawer-overlay" onClick={() => setCommDrawerOpen(false)}>
-          <div className="drawer-panel" onClick={e => e.stopPropagation()}>
-            <div className="drawer-header">
-              <div className="drawer-title">Log Communication</div>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCommDrawerOpen(false)}>×</button>
+      <Drawer open={!!projectForm} onClose={() => setProjectForm(null)} title={projectForm?.id ? 'Edit project' : 'New project'} description={client.company}
+        footer={<>
+          {projectForm?.id && (
+            <button type="button" className="btn btn-danger" style={{ marginRight: 'auto' }} disabled={saving}
+              onClick={async () => {
+                if (!window.confirm(`Delete "${projectForm.title}" and its tasks?`)) return
+                if (await run(supabase.from('projects').delete().eq('id', projectForm.id), 'Project deleted.')) setProjectForm(null)
+              }}>Delete</button>
+          )}
+          <button type="button" className="btn" onClick={() => setProjectForm(null)}>Cancel</button>
+          <button type="submit" form="project-form" className="btn btn-primary" disabled={saving || !projectForm?.title.trim()}>{saving && <Spinner />} Save project</button>
+        </>}>
+        {projectForm && (
+          <form id="project-form" onSubmit={saveProject}>
+            <div className="field">
+              <label className="label" htmlFor="p-title">Title</label>
+              <input id="p-title" className="input" required autoFocus value={projectForm.title} onChange={e => setProjectForm({ ...projectForm, title: e.target.value })} placeholder="Q4 brand refresh" />
             </div>
-            <form onSubmit={handleLogComm} className="drawer-body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="form-group">
-                  <label className="form-label">Channel</label>
-                  <select className="form-input" value={commChannel} onChange={e => setCommChannel(e.target.value)}>
-                    <option value="email">Email</option>
-                    <option value="portal">Portal</option>
-                    <option value="call">Call / Meet</option>
-                    <option value="slack">Slack</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Direction</label>
-                  <select className="form-input" value={commDirection} onChange={e => setCommDirection(e.target.value)}>
-                    <option value="outbound">Outbound (To Client)</option>
-                    <option value="inbound">Inbound (From Client)</option>
-                    <option value="internal">Internal Note</option>
-                  </select>
-                </div>
+            <div className="field">
+              <label className="label" htmlFor="p-desc">Scope</label>
+              <textarea id="p-desc" className="textarea" rows={3} value={projectForm.description} onChange={e => setProjectForm({ ...projectForm, description: e.target.value })} placeholder="Deliverables, formats, specs…" />
+            </div>
+            <div className="form-grid">
+              <div className="field">
+                <label className="label" htmlFor="p-status">Status</label>
+                <select id="p-status" className="select" value={projectForm.status} onChange={e => setProjectForm({ ...projectForm, status: e.target.value })}>
+                  {['todo', 'in_progress', 'review', 'delivered'].map(s => <option key={s} value={s}>{humanize(s)}</option>)}
+                </select>
               </div>
-              <div className="form-group">
-                <label className="form-label">Notes / Message</label>
-                <textarea
-                  className="form-textarea"
-                  placeholder="Summary of conversation or update sent..."
-                  value={commBody}
-                  onChange={e => setCommBody(e.target.value)}
-                  rows={4}
-                  required
-                  autoFocus
-                />
+              <div className="field">
+                <label className="label" htmlFor="p-priority">Priority</label>
+                <select id="p-priority" className="select" value={projectForm.priority} onChange={e => setProjectForm({ ...projectForm, priority: e.target.value })}>
+                  {['low', 'medium', 'high', 'urgent'].map(s => <option key={s} value={s}>{humanize(s)}</option>)}
+                </select>
               </div>
-              <div className="drawer-footer" style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <button type="button" className="btn btn-default" onClick={() => setCommDrawerOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={savingComm || !commBody.trim()}>
-                  {savingComm ? 'Saving…' : 'Log Communication'}
-                </button>
+            </div>
+            <div className="field">
+              <label className="label" htmlFor="p-deadline">Deadline</label>
+              <input id="p-deadline" type="date" className="input" value={projectForm.deadline} onChange={e => setProjectForm({ ...projectForm, deadline: e.target.value })} />
+            </div>
+          </form>
+        )}
+      </Drawer>
+
+      <Drawer open={!!commForm} onClose={() => setCommForm(null)} title="Log interaction" description={client.company}
+        footer={<>
+          <button type="button" className="btn" onClick={() => setCommForm(null)}>Cancel</button>
+          <button type="submit" form="comm-form" className="btn btn-primary" disabled={saving || !commForm?.body.trim()}>{saving && <Spinner />} Save</button>
+        </>}>
+        {commForm && (
+          <form id="comm-form" onSubmit={saveComm}>
+            <div className="form-grid">
+              <div className="field">
+                <label className="label" htmlFor="m-channel">Channel</label>
+                <select id="m-channel" className="select" value={commForm.channel} onChange={e => setCommForm({ ...commForm, channel: e.target.value })}>
+                  <option value="email">Email</option><option value="call">Call / meeting</option><option value="slack">Slack</option>
+                  <option value="portal">Portal</option><option value="note">Note</option>
+                </select>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <div className="field">
+                <label className="label" htmlFor="m-dir">Direction</label>
+                <select id="m-dir" className="select" value={commForm.direction} onChange={e => setCommForm({ ...commForm, direction: e.target.value })}>
+                  <option value="outbound">To client</option><option value="inbound">From client</option><option value="internal">Internal</option>
+                </select>
+              </div>
+            </div>
+            <div className="field">
+              <label className="label" htmlFor="m-subject">Subject (optional)</label>
+              <input id="m-subject" className="input" value={commForm.subject} onChange={e => setCommForm({ ...commForm, subject: e.target.value })} />
+            </div>
+            <div className="field">
+              <label className="label" htmlFor="m-body">Summary</label>
+              <textarea id="m-body" className="textarea" rows={5} required autoFocus value={commForm.body} onChange={e => setCommForm({ ...commForm, body: e.target.value })} />
+            </div>
+          </form>
+        )}
+      </Drawer>
+
+      <Drawer open={!!delivForm} onClose={() => setDelivForm(null)} title="Share a deliverable" description="The client sees this in their portal."
+        footer={<>
+          <button type="button" className="btn" onClick={() => setDelivForm(null)}>Cancel</button>
+          <button type="submit" form="deliv-form" className="btn btn-primary" disabled={saving || !delivForm?.title.trim() || !delivForm?.file_url.trim()}>{saving && <Spinner />} Share</button>
+        </>}>
+        {delivForm && (
+          <form id="deliv-form" onSubmit={saveDeliverable}>
+            <div className="field">
+              <label className="label" htmlFor="d-title">Title</label>
+              <input id="d-title" className="input" required autoFocus value={delivForm.title} onChange={e => setDelivForm({ ...delivForm, title: e.target.value })} placeholder="Hero video — cut v2" />
+            </div>
+            <div className="field">
+              <label className="label" htmlFor="d-url">File link</label>
+              <input id="d-url" type="url" className="input" required value={delivForm.file_url} onChange={e => setDelivForm({ ...delivForm, file_url: e.target.value })} placeholder="https://drive.google.com/…" />
+            </div>
+            <div className="field">
+              <label className="label" htmlFor="d-project">Project</label>
+              <select id="d-project" className="select" value={delivForm.project_id} onChange={e => setDelivForm({ ...delivForm, project_id: e.target.value })}>
+                <option value="">—</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label className="label" htmlFor="d-notes">Notes for the client</label>
+              <textarea id="d-notes" className="textarea" rows={3} value={delivForm.notes} onChange={e => setDelivForm({ ...delivForm, notes: e.target.value })} />
+            </div>
+          </form>
+        )}
+      </Drawer>
+
+      <Drawer open={!!clientForm} onClose={() => setClientForm(null)} title="Edit client"
+        footer={<>
+          <button type="button" className="btn" onClick={() => setClientForm(null)}>Cancel</button>
+          <button type="submit" form="edit-client-form" className="btn btn-primary" disabled={saving || !clientForm?.company.trim()}>{saving && <Spinner />} Save</button>
+        </>}>
+        {clientForm && (
+          <form id="edit-client-form" onSubmit={saveClient}>
+            <div className="field">
+              <label className="label" htmlFor="e-company">Company</label>
+              <input id="e-company" className="input" required value={clientForm.company} onChange={e => setClientForm({ ...clientForm, company: e.target.value })} />
+            </div>
+            <div className="form-grid">
+              <div className="field">
+                <label className="label" htmlFor="e-name">Contact name</label>
+                <input id="e-name" className="input" value={clientForm.contact_name ?? ''} onChange={e => setClientForm({ ...clientForm, contact_name: e.target.value })} />
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="e-email">Contact email</label>
+                <input id="e-email" type="email" className="input" value={clientForm.contact_email ?? ''} onChange={e => setClientForm({ ...clientForm, contact_email: e.target.value })} />
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="e-status">Status</label>
+                <select id="e-status" className="select" value={clientForm.status} onChange={e => setClientForm({ ...clientForm, status: e.target.value })}>
+                  <option value="lead">Lead</option><option value="active">Active</option><option value="past">Past</option>
+                </select>
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="e-value">Monthly value</label>
+                <input id="e-value" type="number" min={0} step="0.01" className="input" value={clientForm.monthly_value ?? ''}
+                  onChange={e => setClientForm({ ...clientForm, monthly_value: e.target.value === '' ? null : Number(e.target.value) })} />
+              </div>
+            </div>
+          </form>
+        )}
+      </Drawer>
     </>
   )
 }
