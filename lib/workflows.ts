@@ -1,8 +1,8 @@
 // Client-safe workflow metadata. Webhook paths live server-side in lib/n8n.ts.
 
 export const WORKFLOWS = [
-  { key: 'WF-1-Scraper', label: 'Scrape leads', description: 'Pull new founders from Reddit, Product Hunt and YC into raw_leads.' },
-  { key: 'WF-2-Processor', label: 'Score & enrich', description: 'Find emails with Hunter.io and score raw leads with Groq.' },
+  { key: 'WF-1-Scraper', label: 'Scrape leads', description: 'Bear Radar: new launches from Hacker News, Product Hunt, BetaList and YC into raw_leads.' },
+  { key: 'WF-2-Processor', label: 'Score & enrich', description: 'Keep small, new teams with a buying signal, find the founder email and score with Groq.' },
   { key: 'WF-3-Outreach', label: 'Draft outreach', description: 'Write personalised emails for qualified leads and queue them for review.' },
   { key: 'WF-4-ReplyMonitor', label: 'Check replies', description: 'Scan Gmail threads and mark leads that replied.' },
   { key: 'WF-5-Feedback', label: 'Feedback loop', description: 'Export outcomes as few-shot examples for future prompts.' },

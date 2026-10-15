@@ -1,0 +1,488 @@
+{
+  "name": "WF-1: Lead Radar – Sources",
+  "nodes": [
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000001",
+      "name": "Every 6 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000003",
+      "name": "Dashboard: Scrape leads",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wf1-scraper",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000002",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bearDashboardSecret",
+          "name": "Bear dashboard secret"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000013",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        100
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000004",
+              "name": "supabase_url",
+              "value": "https://YOUR-PROJECT-REF.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000005",
+              "name": "hn_url",
+              "value": "https://hn.algolia.com/api/v1/search_by_date?tags=show_hn&hitsPerPage=200",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000006",
+              "name": "yc_url",
+              "value": "https://yc-oss.github.io/api/companies/all.json",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000007",
+              "name": "betalist_url",
+              "value": "https://betalist.com/startups.rss",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000008",
+              "name": "producthunt_url",
+              "value": "https://api.producthunt.com/v2/api/graphql",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000009",
+              "name": "lookback_days",
+              "value": 7,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000010",
+              "name": "yc_lookback_days",
+              "value": 120,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000011",
+              "name": "max_team_size",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000012",
+              "name": "started_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000014",
+      "name": "Hacker News: Show HN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        -150
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.hn_url }}&numericFilters=created_at_i>{{ Math.floor(Date.now() / 1000) - $json.lookback_days * 86400 }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000015",
+      "name": "YC: new companies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.yc_url }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000016",
+      "name": "BetaList: new startups",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [
+        520,
+        150
+      ],
+      "parameters": {
+        "url": "={{ $json.betalist_url }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000017",
+      "name": "Product Hunt: launches",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.producthunt_url }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"query($after: DateTime) { posts(order: NEWEST, first: 50, postedAfter: $after) { edges { node { id name tagline description url website votesCount createdAt makers { name username twitterUsername } } } } }\", variables: { after: new Date(Date.now() - $json.lookback_days * 86400000).toISOString() } }) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bearProductHunt",
+          "name": "Product Hunt token"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000018",
+      "name": "Merge sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        780,
+        75
+      ],
+      "parameters": {
+        "numberInputs": 4
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000019",
+      "name": "Normalize & pre-filter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        75
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// WF-1 \"Normalize & pre-filter\" (Code node, Run Once for All Items).\n// Turns the mixed output of every source into raw_leads rows and drops obvious misses.\n// Input: items from Hacker News, YC, BetaList (RSS) and Product Hunt, merged.\n// Output: ONE item { rows: [...raw_leads rows], collected, failed_sources: [...] }.\n\nconst cfg = $('Config').first().json\nconst LOOKBACK_DAYS = Number(cfg.lookback_days) || 7\nconst YC_LOOKBACK_DAYS = Number(cfg.yc_lookback_days) || 120\nconst MAX_TEAM = Number(cfg.max_team_size) || 3\nconst cutoff = Date.now() - LOOKBACK_DAYS * 86400000\nconst ycCutoff = Date.now() - YC_LOOKBACK_DAYS * 86400000\n\n// Hosts that are not a startup's own website (code repos, app stores, social, launch sites).\nconst NOT_A_SITE = [\n  'github.com', 'gitlab.com', 'bitbucket.org', 'youtube.com', 'youtu.be', 'apps.apple.com', 'play.google.com',\n  'chromewebstore.google.com', 'chrome.google.com', 'addons.mozilla.org', 'medium.com', 'substack.com',\n  'twitter.com', 'x.com', 'linkedin.com', 'reddit.com', 'news.ycombinator.com', 'docs.google.com',\n  'huggingface.co', 'npmjs.com', 'pypi.org', 'arxiv.org', 'notion.site', 'itch.io',\n]\n\n// n8n's Code-node sandbox has no global URL, so parse the host with a regex.\nfunction hostOf(url) {\n  const m = String(url || '').match(/^https?:\\/\\/(?:[^@\\/?#]*@)?([^\\/?#:]+)/i)\n  return m ? m[1].toLowerCase().replace(/^www\\./, '') : null\n}\nconst isOwnSite = host => !!host && !NOT_A_SITE.some(d => host === d || host.endsWith('.' + d))\nconst clean = (s, max = 2000) => (s == null ? null : String(s).replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, max) || null)\nconst toIso = v => {\n  if (v == null || v === '') return null\n  const d = typeof v === 'number' ? new Date(v < 1e12 ? v * 1000 : v) : new Date(v)\n  return Number.isNaN(d.getTime()) ? null : d.toISOString()\n}\nconst handleOf = v => {\n  if (!v) return null\n  const m = String(v).match(/(?:twitter\\.com|x\\.com)\\/(@?\\w{1,15})/i)\n  const h = (m ? m[1] : String(v)).replace(/^@/, '').trim()\n  return /^\\w{1,15}$/.test(h) ? h : null\n}\nconst redacted = v => !v || /redacted/i.test(String(v))\n\nconst rows = []\nconst failed = []\nconst seen = new Set()\n\nfunction push(row) {\n  const domain = row.website && !/producthunt\\.com|betalist\\.com/.test(row.website) ? hostOf(row.website) : null\n  if (row.website && domain && !isOwnSite(domain)) return // e.g. a GitHub repo, not a company\n  const dedup_key = domain || `${row.source}:${row.source_id}`\n  if (seen.has(dedup_key)) return\n  seen.add(dedup_key)\n  rows.push({\n    source: row.source,\n    source_id: String(row.source_id),\n    name: row.name ?? null,\n    email: null,\n    company: row.company ?? null,\n    company_domain: domain,\n    website: row.website ?? null,\n    profile_url: row.profile_url ?? null,\n    bio: row.bio ?? null,\n    post_content: row.post_content ?? null,\n    x_handle: row.x_handle ?? null,\n    linkedin_url: row.linkedin_url ?? null,\n    launched_at: row.launched_at ?? null,\n    team_size: row.team_size ?? null,\n    source_score: row.source_score ?? null,\n    raw_json: row.raw_json ?? null,\n    status: 'raw',\n    dedup_key,\n  })\n}\n\nfor (const item of $input.all()) {\n  const d = item.json || {}\n\n  // A source node that failed (On Error = Continue) passes its error through.\n  if (d.error) {\n    failed.push(String(d.error?.message || d.error).slice(0, 300))\n    continue\n  }\n\n  // ---- Hacker News \"Show HN\" (Algolia API) ----\n  if (Array.isArray(d.hits)) {\n    for (const h of d.hits) {\n      if (!h.url) continue // text-only posts have no product site\n      const ts = (h.created_at_i || 0) * 1000\n      if (ts && ts < cutoff) continue\n      const title = clean(h.title, 300) || ''\n      const product = title.replace(/^show hn:\\s*/i, '')\n      const company = clean(product.split(/\\s[–—\\-:|]\\s|:\\s/)[0], 120)\n      push({\n        source: 'hackernews',\n        source_id: h.objectID,\n        name: h.author || null,\n        company,\n        website: h.url,\n        profile_url: `https://news.ycombinator.com/item?id=${h.objectID}`,\n        bio: h.author ? `HN: ${h.author}` : null,\n        post_content: clean(`${title}\\n\\n${h.story_text || ''}`),\n        launched_at: toIso(h.created_at || h.created_at_i),\n        source_score: Number.isFinite(h.points) ? h.points : null,\n        raw_json: { title: h.title, points: h.points, comments: h.num_comments },\n      })\n    }\n    continue\n  }\n\n  // ---- Product Hunt (GraphQL API v2) ----\n  if (d.data && d.data.posts) {\n    for (const edge of d.data.posts.edges || []) {\n      const p = edge.node || {}\n      const ts = Date.parse(p.createdAt || '')\n      if (ts && ts < cutoff) continue\n      const makers = (p.makers || []).filter(m => !redacted(m.name) || !redacted(m.username))\n      const first = makers[0] || {}\n      push({\n        source: 'producthunt',\n        source_id: p.id,\n        name: redacted(first.name) ? null : first.name,\n        company: clean(p.name, 120),\n        website: p.website || null, // usually a producthunt.com/r/... redirect; WF-2 resolves it\n        profile_url: p.url || null,\n        bio: first.twitterUsername ? `@${first.twitterUsername}` : null,\n        post_content: clean(`${p.name}: ${p.tagline || ''}\\n\\n${p.description || ''}`),\n        x_handle: handleOf(first.twitterUsername),\n        launched_at: toIso(p.createdAt),\n        team_size: makers.length || null,\n        source_score: Number.isFinite(p.votesCount) ? p.votesCount : null,\n        raw_json: { tagline: p.tagline, votes: p.votesCount, makers: makers.length },\n      })\n    }\n    continue\n  }\n\n  // ---- YC companies (yc-oss API: one item per company) ----\n  if (d.slug && ('batch' in d || 'one_liner' in d)) {\n    const launched = toIso(d.launched_at)\n    if (!launched || Date.parse(launched) < ycCutoff) continue\n    const team = Number(d.team_size) || null\n    if (team && team > MAX_TEAM) continue\n    if (d.status && !/active/i.test(d.status)) continue\n    push({\n      source: 'yc',\n      source_id: d.slug,\n      company: clean(d.name, 120),\n      website: d.website || null,\n      profile_url: d.url || `https://www.ycombinator.com/companies/${d.slug}`,\n      bio: d.batch ? `YC ${d.batch}` : null,\n      post_content: clean(`${d.name}: ${d.one_liner || ''}\\n\\n${d.long_description || ''}`),\n      launched_at: launched,\n      team_size: team,\n      raw_json: { batch: d.batch, industries: d.industries, regions: d.regions, stage: d.stage },\n    })\n    continue\n  }\n\n  // ---- BetaList (RSS Read node: one item per entry) ----\n  if (d.link && /betalist\\.com/i.test(d.link)) {\n    const ts = Date.parse(d.isoDate || d.pubDate || '')\n    if (ts && ts < cutoff) continue\n    const title = clean(d.title, 300) || ''\n    push({\n      source: 'betalist',\n      source_id: d.guid || d.link,\n      company: clean(title.split(/\\s[–—\\-:|]\\s/)[0], 120),\n      website: d.link, // BetaList page; WF-2 follows its \"visit\" link to the real site\n      profile_url: d.link,\n      post_content: clean(`${title}\\n\\n${d.contentSnippet || d.content || ''}`),\n      launched_at: toIso(d.isoDate || d.pubDate),\n      raw_json: { title: d.title },\n    })\n  }\n}\n\nreturn [{ json: { rows, collected: rows.length, failed_sources: failed } }]\n"
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000020",
+      "name": "Save new raw leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1220,
+        75
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/raw_leads?on_conflict=dedup_key",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rows) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000021",
+      "name": "Run summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        75
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// WF-1 \"Run summary\" (Code node, Run Once for All Items).\n// Builds one workflow_logs row so the run appears on the dashboard's Workflows page.\n\nconst cfg = $('Config').first().json\nconst norm = $('Normalize & pre-filter').first().json\n// The insert returns only rows that were new (duplicates are skipped by the database).\nconst inserted = $input.all().filter(i => i.json && i.json.id).length\nconst failed = norm.failed_sources || []\nconst allSourcesFailed = failed.length > 0 && norm.collected === 0\n\nreturn [{\n  json: {\n    workflow_name: 'WF-1-Scraper',\n    status: allSourcesFailed ? 'failed' : 'success',\n    leads_scraped: inserted,\n    leads_skipped: Math.max(0, (norm.collected || 0) - inserted),\n    leads_scored: 0,\n    emails_sent: 0,\n    replies_detected: 0,\n    errors: failed.length ? failed.map(message => ({ message })) : null,\n    started_at: cfg.started_at,\n    finished_at: new Date().toISOString(),\n  },\n}]\n"
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000022",
+      "name": "Write run log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1660,
+        75
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/workflow_logs",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 6 hours": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dashboard: Scrape leads": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Hacker News: Show HN",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "YC: new companies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "BetaList: new startups",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Product Hunt: launches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hacker News: Show HN": {
+      "main": [
+        [
+          {
+            "node": "Merge sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YC: new companies": {
+      "main": [
+        [
+          {
+            "node": "Merge sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "BetaList: new startups": {
+      "main": [
+        [
+          {
+            "node": "Merge sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Product Hunt: launches": {
+      "main": [
+        [
+          {
+            "node": "Merge sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge sources": {
+      "main": [
+        [
+          {
+            "node": "Normalize & pre-filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & pre-filter": {
+      "main": [
+        [
+          {
+            "node": "Save new raw leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save new raw leads": {
+      "main": [
+        [
+          {
+            "node": "Run summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run summary": {
+      "main": [
+        [
+          {
+            "node": "Write run log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

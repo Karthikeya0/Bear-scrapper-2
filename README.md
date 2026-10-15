@@ -1,11 +1,11 @@
 # Bear Studios — Lead Generation & Studio Operations
 
-A Next.js 16 dashboard on top of Supabase and self-hosted n8n. It covers lead scraping and AI scoring, human-approved cold outreach, and client/project operations with a client portal.
+**Bear Radar**: a signal-based lead engine that finds tiny, just-launched startups and queues personalised pitches for approval. A Next.js 16 dashboard on top of Supabase and self-hosted n8n. It covers lead scraping and AI scoring, human-approved cold outreach, and client/project operations with a client portal.
 
 ```
 n8n (self-hosted)
-  WF-1 Scraper (Reddit, Product Hunt, YC)      → raw_leads
-  WF-2 Processor (Hunter.io + Groq scoring)    → leads
+  WF-1 Lead Radar – Sources (HN Show HN, Product Hunt, BetaList, YC) → raw_leads
+  WF-2 Qualify & Enrich (small + new + signal, Hunter, Groq)        → leads
   WF-3 Outreach generator (Groq)               → outreach_queue (pending_review)
   WF-3b Send approved (webhook: approve-and-send, Gmail) → outreach_history, outreach_sequences
   WF-4 Reply monitor (Gmail polling)           → leads.status = replied
@@ -46,6 +46,8 @@ Run these in the Supabase SQL editor, in order. Every file is safe to re-run.
 2. `supabase/migrations/002_n8n_compat.sql`: **additive only**. Adds the columns the n8n workflows read/write (`raw_leads.status`, `leads.ai_reasoning`, `outreach_history.body_sent/thread_id`, `outreach_sequences.sent/cancelled`, …), allows the `bounced` status, enables Realtime.
 3. `supabase/migrations/003_security_rls.sql`: replaces the open `using (true)` policies with role-based ones. It also fixes the recursive `user_profiles` policy and makes new sign-ups `pending` instead of `owner`. Before you run it, make sure n8n uses the **service-role** key.
 
+4. `supabase/migrations/004_bear_radar.sql`: **additive only**. Columns for Bear Radar (website, X/LinkedIn, team size, domain age, video check, signals) and duplicate-safe inserts.
+
 ### Roles
 
 | Role | Access |
@@ -67,6 +69,10 @@ where id = (select id from auth.users where email = 'client@acme.com');
 update public.clients set portal_user_id = (select id from auth.users where email = 'client@acme.com')
 where company = 'Acme';
 ```
+
+## n8n setup
+
+See [`n8n-workflows/BEAR-RADAR-SETUP.md`](n8n-workflows/BEAR-RADAR-SETUP.md) for the step-by-step import guide (WF-1 and WF-2 v2).
 
 ## n8n integration contract (unchanged)
 
