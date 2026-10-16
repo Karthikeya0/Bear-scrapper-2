@@ -218,13 +218,13 @@ export default function AppShell({ email, role, children }: { email: string; rol
               <IconPanel />
             </button>
             <div className="crumb">
-              Bear Studios <span className="subtle">/</span> <strong>{current?.label ?? 'Overview'}</strong>
+              <span className="crumb-root">Bear Studios <span className="subtle">/</span> </span><strong>{current?.label ?? 'Overview'}</strong>
             </div>
             <div className="topbar-spacer" />
             {isOwner && (
               <Link href="/settings?tab=integrations" className="health-pill" title={health.detail ?? health.label}>
                 <span className={`dot ${health.state === 'loading' ? '' : health.state}`} />
-                <span>{health.label}</span>
+                <span className="health-label">{health.label}</span>
               </Link>
             )}
           </header>

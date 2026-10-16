@@ -208,7 +208,8 @@ function buildWf2() {
       hn_user_api: 'https://hacker-news.firebaseio.com/v0',
       hunter_url: 'https://api.hunter.io/v2/domain-search',
       groq_url: 'https://api.groq.com/openai/v1/chat/completions',
-      groq_model: 'llama-3.3-70b-versatile',
+      // llama-3.3-70b-versatile was retired by Groq on 2026-08-16; gpt-oss-120b is Groq's recommended replacement.
+      groq_model: 'openai/gpt-oss-120b',
       started_at: '={{ $now.toISO() }}',
     }),
     http('Fetch raw leads', [460, 100], {
@@ -240,7 +241,7 @@ function buildWf2() {
       auth: { header: CRED.groq },
       batching: { batchSize: 1, batchInterval: 2500 },
       body:
-        "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.2, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: " +
+        "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.2, max_completion_tokens: 2048, ...(String($('Config').first().json.groq_model).startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}), messages: [ { role: 'system', content: " +
         JSON.stringify(GROQ_SYSTEM) +
         " }, { role: 'user', content: ['Company: ' + ($json.company || '?'), 'Website: ' + $json.website, 'Source: ' + $json.source, 'Launched: ' + ($json.launched_at || 'unknown'), 'Team size: ' + ($json.team_size || 'unknown'), 'Homepage has a video: ' + ($json.has_video === null ? 'unknown' : $json.has_video), 'Signals: ' + ($json.signals || []).join(', '), 'Founder: ' + ($json.name || '?') + ($json.founder_role ? ' (' + $json.founder_role + ')' : ''), 'About: ' + String($json.post_content || '').slice(0, 1500)].join('\\n') } ] }) }}",
     }, { ...CONTINUE, ...RETRY }),
@@ -311,7 +312,8 @@ function buildWf3() {
       sender_name: 'Bear Studios',
       portfolio_url: '',
       groq_url: 'https://api.groq.com/openai/v1/chat/completions',
-      groq_model: 'llama-3.3-70b-versatile',
+      // llama-3.3-70b-versatile was retired by Groq on 2026-08-16; gpt-oss-120b is Groq's recommended replacement.
+      groq_model: 'openai/gpt-oss-120b',
       started_at: '={{ $now.toISO() }}',
     }),
     http('Fetch leads to draft', [460, 100], {
@@ -342,7 +344,7 @@ function buildWf3() {
       // One request every 2.5s keeps a batch inside Groq's free-tier rate limits.
       batching: { batchSize: 1, batchInterval: 2500 },
       body:
-        "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.6, response_format: { type: 'json_object' }, " +
+        "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.6, max_completion_tokens: 2048, ...(String($('Config').first().json.groq_model).startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}), " +
         "messages: [ { role: 'system', content: $json.system }, { role: 'user', content: $json.user } ] }) }}",
     }, { ...CONTINUE, ...RETRY }),
     code('Build drafts', [1780, 0], 'wf3-build-drafts.js'),

@@ -80,6 +80,7 @@ If any node is red, open it, copy the error, and send it to me.
 | `just_launched_days` (WF-2) | 30 | Counts as a "just launched" buying signal |
 | `batch_size` (WF-2) | 25 | Raw leads checked per run — lower it to save Hunter credits |
 | `min_score` (WF-2, WF-3) | 60 | AI score needed for WF-3 to draft an email |
+| `groq_model` (WF-2, WF-3) | openai/gpt-oss-120b | Groq model. llama-3.3-70b-versatile was retired by Groq on 16 Aug 2026 |
 | `batch_size` (WF-3) | 10 | Drafts written per run (Groq calls are spaced 2.5 s apart and retried on rate limits) |
 | `follow_up_days` (WF-3) | 4,7 | Days to wait before follow-up 2, then follow-up 3. `4` = one follow-up only |
 | `draft_dms` (WF-3) | true | Also draft X/LinkedIn DMs for good leads without an email |

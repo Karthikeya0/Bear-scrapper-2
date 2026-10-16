@@ -73,7 +73,7 @@ export default function ResultsPage() {
   const replied = leads.filter(l => REPLIED.has(l.status))
   const bounced = leads.filter(l => l.status === 'bounced').length
   const weekAgo = loadedAt - 7 * DAY
-  const sentThisWeek = sent.filter(s => s.sent_at && Date.parse(s.sent_at) >= weekAgo).length
+  const sentThisWeek = emails.filter(s => s.sent_at && Date.parse(s.sent_at) >= weekAgo).length
   const repliesThisWeek = leads.filter(l => l.replied_at && Date.parse(l.replied_at) >= weekAgo).length
 
   const sources = [...new Set(leads.map(l => l.source ?? 'unknown'))].sort()
@@ -100,12 +100,11 @@ export default function ResultsPage() {
   })
 
   const tiles = [
-    { label: 'Emails sent', value: emails.length, hint: `${firstEmails} first · ${followUps} follow-ups` },
+    { label: 'Emails sent', value: emails.length, hint: `${firstEmails} first · ${followUps} follow-ups · ${sentThisWeek} this week` },
     { label: 'DMs sent', value: dms, hint: 'Marked sent on the Outreach page' },
     { label: 'Replies', value: replied.length, hint: `${repliesThisWeek} this week` },
     { label: 'Reply rate', value: pct(replied.length, contacted.length), hint: `of ${contacted.length} contacted leads` },
     { label: 'Bounced', value: bounced, hint: pct(bounced, contacted.length) + ' of contacted' },
-    { label: 'Sent this week', value: sentThisWeek, hint: 'Emails + DMs, last 7 days' },
   ]
 
   return (

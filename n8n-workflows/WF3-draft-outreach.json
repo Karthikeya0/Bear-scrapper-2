@@ -109,7 +109,7 @@
             {
               "id": "c0f19a00-0000-4000-8000-000000000066",
               "name": "groq_model",
-              "value": "llama-3.3-70b-versatile",
+              "value": "openai/gpt-oss-120b",
               "type": "string"
             },
             {
@@ -299,7 +299,7 @@
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.6, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: $json.system }, { role: 'user', content: $json.user } ] }) }}"
+        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.6, max_completion_tokens: 2048, ...(String($('Config').first().json.groq_model).startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}), messages: [ { role: 'system', content: $json.system }, { role: 'user', content: $json.user } ] }) }}"
       },
       "credentials": {
         "httpHeaderAuth": {
@@ -323,7 +323,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// WF-3 \"Build drafts\" (Code node, Run Once for All Items).\n// Input: one Groq response per planned draft, in the same order as \"Plan drafts\".\n// Output: ONE item { rows: [...outreach_queue rows], drafted, failed: [...] }.\n\nconst plan = $('Plan drafts').all().map(i => i.json)\nconst rows = []\nconst failed = []\n\n$input.all().forEach((item, i) => {\n  const p = plan[i]\n  if (!p) return\n  const res = item.json || {}\n  try {\n    const out = JSON.parse(res.choices[0].message.content)\n    let subject = String(out.subject || '').replace(/\\s+/g, ' ').trim().slice(0, 120)\n    const body = String(out.body || '').replace(/\\r\\n/g, '\\n').trim()\n    // Follow-ups go out as replies in the original Gmail thread, so keep the original subject.\n    if (p.kind === 'followup') subject = p.fallback_subject\n    if (!subject || body.length < 40) throw new Error('empty subject or body')\n    rows.push({ lead_id: p.lead_id, subject, body, status: 'pending_review', sequence_step: p.sequence_step, channel: p.channel })\n  } catch (e) {\n    const reason = res.error ? String(res.error.message || res.error) : String(e.message || e)\n    failed.push({ lead: p.lead_id, kind: p.kind, message: `Draft failed: ${reason.slice(0, 200)}` })\n  }\n})\n\nreturn [{ json: { rows, drafted: rows.length, failed } }]\n"
+        "jsCode": "// WF-3 \"Build drafts\" (Code node, Run Once for All Items).\n// Input: one Groq response per planned draft, in the same order as \"Plan drafts\".\n// Output: ONE item { rows: [...outreach_queue rows], drafted, failed: [...] }.\n\n// The model is asked for JSON only; take the first {...} block in case it adds any text around it.\nconst parseJson = text => {\n  const raw = String(text || '').trim()\n  const block = raw.match(/\\{[\\s\\S]*\\}/)\n  return JSON.parse(block ? block[0] : raw)\n}\n// n8n reports API errors as '400 - {\"error\":{\"message\":\"...\"}}'; keep the readable part.\nconst errorText = err => {\n  const text = String((err && err.message) || err || 'unknown error')\n  return (text.match(/\"message\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"/) || [])[1] || text\n}\n\nconst plan = $('Plan drafts').all().map(i => i.json)\nconst rows = []\nconst failed = []\n\n$input.all().forEach((item, i) => {\n  const p = plan[i]\n  if (!p) return\n  const res = item.json || {}\n  try {\n    const out = parseJson(res.choices[0].message.content)\n    let subject = String(out.subject || '').replace(/\\s+/g, ' ').trim().slice(0, 120)\n    const body = String(out.body || '').replace(/\\r\\n/g, '\\n').trim()\n    // Follow-ups go out as replies in the original Gmail thread, so keep the original subject.\n    if (p.kind === 'followup') subject = p.fallback_subject\n    if (!subject || body.length < 40) throw new Error('empty subject or body')\n    rows.push({ lead_id: p.lead_id, subject, body, status: 'pending_review', sequence_step: p.sequence_step, channel: p.channel })\n  } catch (e) {\n    const reason = res.error ? errorText(res.error) : String(e.message || e)\n    failed.push({ lead: p.lead_id, kind: p.kind, message: `Draft failed: ${reason.slice(0, 200)}` })\n  }\n})\n\nreturn [{ json: { rows, drafted: rows.length, failed } }]\n"
       }
     },
     {

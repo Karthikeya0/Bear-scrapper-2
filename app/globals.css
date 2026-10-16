@@ -163,6 +163,17 @@ a { color: inherit; text-decoration: none; }
 .topbar-spacer { flex: 1; }
 .crumb { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
 .crumb strong { color: var(--text); font-weight: 600; }
+.crumb { min-width: 0; }
+.health-pill { white-space: nowrap; max-width: 46vw; flex-shrink: 0; }
+.health-label { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 640px) {
+  .crumb-root { display: none; }
+  /* A lone last stat tile spans the row instead of leaving a gap. */
+  .stats > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .alert { flex-wrap: wrap; }
+  .alert > div { flex: 1 1 200px; }
+  .alert > .btn, .alert > button { margin-left: 27px !important; }
+}
 .icon-btn {
   width: 34px; height: 34px; display: inline-grid; place-items: center; border-radius: 8px;
   color: var(--text-secondary); background: transparent; border: 1px solid transparent; cursor: pointer;
@@ -352,7 +363,8 @@ table.table { width: 100%; border-collapse: separate; border-spacing: 0; font-si
 .alert.warn { background: var(--amber-soft); color: var(--amber-text); border-color: color-mix(in srgb, var(--amber) 25%, transparent); }
 .alert.info { background: var(--blue-soft); color: var(--blue-text); border-color: color-mix(in srgb, var(--blue) 22%, transparent); }
 .alert.success { background: var(--green-soft); color: var(--green-text); border-color: color-mix(in srgb, var(--green) 22%, transparent); }
-.alert .btn { margin-left: auto; }
+.alert .btn { margin-left: auto; align-self: center; flex-shrink: 0; }
+.card .alert:last-child { margin-bottom: 0; }
 
 /* ---------- Empty / loading ---------- */
 .empty { padding: 48px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -411,6 +423,16 @@ table.table { width: 100%; border-collapse: separate; border-spacing: 0; font-si
 
 /* ---------- Outreach ---------- */
 .split { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 16px; align-items: start; }
+/* Both panes show the same height when they only hold an empty state. */
+.split > .card:has(> .empty), .split > .card:has(> .fade-in > .empty) { min-height: 300px; display: flex; align-items: center; justify-content: center; }
+.split > .card > .empty { width: 100%; }
+
+/* Outreach pipeline summary */
+.pipeline { margin-bottom: 16px; }
+.pipeline-stats { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: baseline; }
+.pipeline-stats strong { font-variant-numeric: tabular-nums; }
+.pipeline-note { margin-top: 14px; }
+.pipeline-note .alert { margin-bottom: 0; }
 @media (max-width: 1000px) { .split { grid-template-columns: minmax(0, 1fr); } }
 .list { display: flex; flex-direction: column; }
 .list-item { display: block; width: 100%; text-align: left; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--border); background: transparent; font: inherit; color: inherit; cursor: pointer; transition: background 0.12s; }

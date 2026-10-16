@@ -6,11 +6,23 @@ const lead = $('Pick founder email').item.json
 const cfg = $('Config').first().json
 const MIN_SCORE = Number(cfg.min_score) || 60
 
+// The model is asked for JSON only; take the first {...} block in case it adds any text around it.
+const parseJson = text => {
+  const raw = String(text || '').trim()
+  const block = raw.match(/\{[\s\S]*\}/)
+  return JSON.parse(block ? block[0] : raw)
+}
+// n8n reports API errors as '400 - {"error":{"message":"..."}}'; keep the readable part.
+const errorText = err => {
+  const text = String((err && err.message) || err || 'unknown error')
+  return (text.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/) || [])[1] || text
+}
+
 let scoring = {}
 try {
-  scoring = JSON.parse($json.choices[0].message.content)
+  scoring = parseJson($json.choices[0].message.content)
 } catch {
-  scoring = { score: null, reasoning: $json.error ? `Groq error: ${String($json.error.message || $json.error).slice(0, 200)}` : 'Could not parse AI score', signals: [], hook: null }
+  scoring = { score: null, reasoning: $json.error ? `Groq error: ${errorText($json.error).slice(0, 200)}` : 'Could not parse AI score', signals: [], hook: null }
 }
 const aiScore = Number.isFinite(Number(scoring.score)) ? Math.max(0, Math.min(100, Math.round(Number(scoring.score)))) : 0
 

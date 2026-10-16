@@ -23,14 +23,14 @@ type Status = {
 
 // Same defaults as the seed in supabase/schema.sql — used only if a settings row is missing.
 const DEFAULT_ICP: IcpFilter = {
-  min_score: 60, sources: ['reddit', 'producthunt', 'yc'], exclude_domains: ['gmail.com', 'yahoo.com', 'hotmail.com'],
+  min_score: 60, sources: ['hackernews', 'producthunt', 'yc', 'betalist'], exclude_domains: ['gmail.com', 'yahoo.com', 'hotmail.com'],
   keywords_include: [], keywords_exclude: [],
 }
 const DEFAULT_SENDING: SendingLimits = {
   daily_max: 25, hourly_max: 3, min_gap_minutes: 5, send_window_start_hour: 9, send_window_end_hour: 17,
   send_on_weekends: false, follow_up_days: [7, 14, 21],
 }
-const SOURCES = ['reddit', 'producthunt', 'yc', 'twitter', 'linkedin']
+const SOURCES = ['hackernews', 'producthunt', 'yc', 'betalist']
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'icp', label: 'Lead filter' },
   { key: 'sending', label: 'Sending limits' },

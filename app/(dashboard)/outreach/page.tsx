@@ -28,7 +28,7 @@ type DraftRun =
 type RunLog = { status: string; leads_scored: number | null; errors: { message?: string }[] | null; created_at: string }
 
 type Pipeline = {
-  total: number; failed: number; low: number; good: number; drafted: number
+  total: number; failed: number; failReason: string | null; low: number; good: number; drafted: number
   readyEmail: number; readyDm: number; noContact: number; other: number
 }
 
@@ -125,9 +125,15 @@ function OutreachInner() {
       rows.push(...((data ?? []) as Row[]))
       if (!data || data.length < 1000) break
     }
-    const p: Pipeline = { total: rows.length, failed: 0, low: 0, good: 0, drafted: 0, readyEmail: 0, readyDm: 0, noContact: 0, other: 0 }
+    const reasons = new Map<string, number>()
+    const p: Pipeline = { total: rows.length, failed: 0, failReason: null, low: 0, good: 0, drafted: 0, readyEmail: 0, readyDm: 0, noContact: 0, other: 0 }
     for (const l of rows) {
-      if (scoringFailed(l.ai_reasoning)) { p.failed++; continue }
+      if (scoringFailed(l.ai_reasoning)) {
+        p.failed++
+        const reason = String(l.ai_reasoning).replace(/^Groq error:\s*/, '').split('\n')[0]
+        reasons.set(reason, (reasons.get(reason) ?? 0) + 1)
+        continue
+      }
       if ((l.ai_score ?? 0) < MIN_SCORE) { p.low++; continue }
       p.good++
       if ((l.outreach_queue ?? []).length) { p.drafted++; continue }
@@ -138,6 +144,7 @@ function OutreachInner() {
       } else if (l.x_handle || l.linkedin_url) p.readyDm++
       else p.noContact++
     }
+    p.failReason = [...reasons.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
     setPipelineError('')
     setPipeline(p)
     const { data: logs } = await supabase
@@ -367,7 +374,7 @@ function OutreachInner() {
         </Alert>
       )}
 
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
+      <div className="card card-pad pipeline">
         <div className="row-between" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
           <div className="section-title" style={{ margin: 0 }}>Pipeline</div>
           {lastRun && (
@@ -382,7 +389,7 @@ function OutreachInner() {
           <div className="skeleton" style={{ height: 40 }} />
         ) : (
           <>
-            <div className="row" style={{ gap: 22, flexWrap: 'wrap' }}>
+            <div className="pipeline-stats">
               <span><strong>{pipeline.total}</strong> <span className="muted">leads</span></span>
               <span><strong>{pipeline.readyEmail}</strong> <span className="muted">ready to email</span></span>
               <span><strong>{pipeline.readyDm}</strong> <span className="muted">ready for a DM</span></span>
@@ -396,20 +403,23 @@ function OutreachInner() {
               )}
             </div>
             {pipeline.failed > 0 && (
-              <Alert
-                tone="warn"
-                title={`${pipeline.failed} ${pipeline.failed === 1 ? 'lead' : 'leads'} got a score of 0 because the AI call failed`}
-                action={
-                  <button className="btn btn-sm" onClick={rescore} disabled={!!bulk}>
-                    {bulk === 'rescore' && <Spinner />} Re-score them
-                  </button>
-                }
-              >
-                Usually Groq’s free rate limit. Re-scoring sends them back through WF-2 (make sure the latest WF-2 is imported — it spaces out the AI calls).
-              </Alert>
+              <div className="pipeline-note">
+                <Alert
+                  tone="warn"
+                  title={`${pipeline.failed} ${pipeline.failed === 1 ? 'lead' : 'leads'} could not be scored by the AI`}
+                  action={
+                    <button className="btn btn-sm" onClick={rescore} disabled={!!bulk}>
+                      {bulk === 'rescore' && <Spinner />} Re-score them
+                    </button>
+                  }
+                >
+                  {pipeline.failReason && <div className="mono" style={{ fontSize: 12.5, margin: '2px 0 4px' }}>Groq said: {pipeline.failReason}</div>}
+                  Import the latest WF-2 first (it uses a current Groq model and retries when Groq is busy), then click Re-score.
+                </Alert>
+              </div>
             )}
             {readyTotal === 0 && pipeline.failed === 0 && (
-              <p className="hint" style={{ marginTop: 10 }}>
+              <p className="hint pipeline-note">
                 {pipeline.total === 0
                   ? 'No leads yet — run Scrape leads, then Score & enrich on the Workflows page.'
                   : pipeline.good === 0
