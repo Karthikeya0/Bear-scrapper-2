@@ -70,6 +70,28 @@ If any node is red, open it, copy the error, and send it to me.
 4. Dashboard → Settings → Integrations → Re-check: `wf3-outreach`, `approve-and-send`, `wf4-reply-monitor` show **Ready**.
 5. Outreach queue → **Draft new emails**. The **Pipeline** box says how many leads are ready and, if none, exactly why.
 
+## Step 7 — Autopilot: daily email, one-word replies, STOP ALL (10 min)
+1. Supabase → SQL Editor → run `supabase/migrations/006_autopilot.sql` (adds the `audit_log` table; deletes nothing).
+2. Re-import **all** workflows (WF-1, WF-2, WF-3, WF-3b, WF-4) and import the new `WF6-daily-digest.json`, each as its own
+   workflow. Set credentials on every ⚠️ node (webhooks → dashboard secret, Supabase, Groq, Gmail), `supabase_url` in each
+   Config, and in WF-6's Config check `dashboard_url`. **Save → Publish** each one.
+3. Dashboard → **Settings → Autopilot**: pick **Daily email**, enter the address it should go to (use a different address
+   from the Gmail account that sends to leads), pick the hour, **Save**, then **Send me today's email now** to try it.
+4. Reply to that email with one word:
+   | Reply | What happens |
+   |---|---|
+   | `YES` | The drafts listed in **that** email are scheduled; WF-3b sends one every 10 minutes in your window, up to your daily limit |
+   | `STOP ALL` | Everything pauses: no scraping, scoring, drafting or sending (reply checks keep running so RESUME works) |
+   | `RESUME` | Starts again |
+   WF-4 reads replies every 30 minutes and emails you "Bear Radar: done" when it acted. A reply only counts if it comes from
+   the owner address, quotes the `[#CODE]` from a digest sent in the last 3 days, and has not been handled before.
+5. **Autopilot** mode also sends drafts for leads at or above the auto-send score without asking (the rest still wait for YES).
+   Start with Daily email for a couple of weeks before switching it on.
+
+Everything is written to `audit_log` (sends, approvals, pauses, autopilot decisions, your email commands) and shown under
+**Workflows → Audit log**. **n8n only runs while your computer is awake** — for real 24/7 autopilot, run n8n on an always-on
+server (e.g. the Oracle Cloud free tier) and point `N8N_BASE_URL` at it.
+
 ## Settings you can change
 **Use the dashboard's Settings page** for the minimum score, drafts per run, follow-up days, DMs, daily limit,
 send window, time zone, weekends, signature and From name. WF-2, WF-3 and WF-3b read them at the start of every run

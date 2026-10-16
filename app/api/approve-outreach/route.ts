@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { APPROVE_AND_SEND_PATH, callWebhook } from '@/lib/n8n'
+import { audit, loadSettings } from '@/lib/settings'
 
 const MAX_SUBJECT = 300
 const MAX_BODY = 20000
@@ -28,6 +29,12 @@ export async function POST(request: NextRequest) {
   }
   if (emailBody !== undefined && (!emailBody || emailBody.length > MAX_BODY)) {
     return NextResponse.json({ ok: false, error: 'Email body is required.' }, { status: 400 })
+  }
+
+  // STOP ALL also blocks sending from the dashboard until you resume.
+  const { settings } = await loadSettings(supabase)
+  if (settings.paused) {
+    return NextResponse.json({ ok: false, error: 'Outreach is paused (STOP ALL). Resume it from the banner at the top or in Settings, then send.' }, { status: 423 })
   }
 
   const approved_at = new Date().toISOString()
@@ -72,5 +79,6 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  await audit(supabase, 'approved', { via: 'dashboard', edited: subject !== undefined || emailBody !== undefined }, { outreach_id: row.id, lead_id: row.lead_id })
   return NextResponse.json({ ok: true })
 }

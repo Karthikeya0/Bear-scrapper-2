@@ -4,7 +4,9 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/Toast'
 import { Alert, Badge, PageHeader, Spinner } from '@/components/ui'
 import { IconDatabase, IconRefresh, IconWorkflow } from '@/components/icons'
-import { DEFAULT_SETTINGS, loadSettings, SETTINGS_KEY, type OutreachSettings } from '@/lib/settings'
+import { audit, DEFAULT_SETTINGS, loadSettings, patchSettings, type AutopilotMode, type OutreachSettings } from '@/lib/settings'
+import { triggerWorkflow } from '@/lib/workflows'
+import { SETTINGS_CHANGED } from '@/components/PausedBanner'
 
 type Status = {
   supabase: { connected: boolean; error?: string }
@@ -22,6 +24,14 @@ const WEBHOOKS: [string, string][] = [
   ['wf4-reply-monitor', 'Check replies'],
 ]
 const FALLBACK_ZONES = ['Asia/Kolkata', 'Asia/Dubai', 'Asia/Singapore', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'UTC']
+const MODES: { key: AutopilotMode; title: string; text: string; tag?: string }[] = [
+  { key: 'manual', title: 'Manual', text: 'You approve every email here in the dashboard. No daily email.' },
+  { key: 'digest', title: 'Daily email', text: 'Each morning you get one email listing the drafts. Reply YES and they go out through the day.', tag: 'Recommended' },
+  { key: 'auto', title: 'Autopilot', text: 'Leads at or above your auto-send score go out without asking. The rest still wait for your YES.' },
+]
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+const withoutPause = ({ paused: _paused, ...rest }: OutreachSettings) => rest // eslint-disable-line @typescript-eslint/no-unused-vars
+
 const hourLabel = (h: number) => (h === 0 || h === 24 ? '12 am' : h === 12 ? '12 pm' : h < 12 ? `${h} am` : `${h - 12} pm`)
 const int = (v: string, min: number, max: number, fallback: number) => {
   const n = Math.round(Number(v))
@@ -41,9 +51,9 @@ function Row({ label, hint, htmlFor, children }: { label: string; hint?: ReactNo
   )
 }
 
-function Section({ title, desc, wide, children }: { title: string; desc: string; wide?: boolean; children: ReactNode }) {
+function Section({ id, title, desc, wide, children }: { id?: string; title: string; desc: string; wide?: boolean; children: ReactNode }) {
   return (
-    <section className={`card set-section${wide ? ' wide' : ''}`}>
+    <section id={id} className={`card set-section${wide ? ' wide' : ''}`}>
       <div className="set-section-head">
         <h2 className="card-title">{title}</h2>
         <p className="card-desc">{desc}</p>
@@ -72,6 +82,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<Status | null>(null)
   const [checking, setChecking] = useState(false)
+  const [pausing, setPausing] = useState(false)
+  const [sendingDigest, setSendingDigest] = useState(false)
   const zones = useMemo(() => {
     let list: string[] = FALLBACK_ZONES
     try {
@@ -105,7 +117,19 @@ export default function SettingsPage() {
     checkStatus()
   }, [load, checkStatus])
 
-  const dirty = JSON.stringify(form) !== JSON.stringify(saved)
+  // The banner (or an emailed STOP ALL / RESUME) can change `paused`; mirror it without touching unsaved edits.
+  useEffect(() => {
+    const sync = async () => {
+      const { settings } = await loadSettings(supabase)
+      setSaved(prev => ({ ...prev, paused: settings.paused }))
+      setForm(prev => ({ ...prev, paused: settings.paused }))
+    }
+    window.addEventListener(SETTINGS_CHANGED, sync)
+    return () => window.removeEventListener(SETTINGS_CHANGED, sync)
+  }, [supabase])
+
+  // The pause switch saves on its own, so it never counts as an unsaved change.
+  const dirty = JSON.stringify(withoutPause(form)) !== JSON.stringify(withoutPause(saved))
   const patch = (p: Partial<OutreachSettings>) => setForm(prev => ({ ...prev, ...p }))
 
   function parseFollowUps(text: string) {
@@ -117,14 +141,40 @@ export default function SettingsPage() {
     for (const k of ['sign_off', 'signature_name', 'company_name', 'from_name'] as const) {
       if (!form[k].trim()) return toast.error('Fill in every signature field.')
     }
+    const owner_email = form.owner_email.trim().toLowerCase()
+    if (owner_email && !EMAIL_RE.test(owner_email)) return toast.error('That email address does not look right.')
+    if (form.autopilot_mode !== 'manual' && !owner_email) return toast.error('Add the email address the daily email should go to.')
     setSaving(true)
-    const value = { ...form, sign_off: form.sign_off.trim(), signature_name: form.signature_name.trim(), company_name: form.company_name.trim(), website: form.website.trim(), from_name: form.from_name.trim() }
-    const { error } = await supabase.from('settings').upsert({ key: SETTINGS_KEY, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    const value = withoutPause({ ...form, owner_email, sign_off: form.sign_off.trim(), signature_name: form.signature_name.trim(), company_name: form.company_name.trim(), website: form.website.trim(), from_name: form.from_name.trim() })
+    const changed = (Object.keys(value) as (keyof typeof value)[]).filter(k => JSON.stringify(value[k]) !== JSON.stringify(saved[k]))
+    // Keeps `paused` as stored: an emailed STOP ALL may have changed it since this page loaded.
+    const { error, value: stored } = await patchSettings(supabase, value)
     setSaving(false)
-    if (error) return toast.error(`Could not save: ${error.message}`)
-    setSaved(value)
-    setForm(value)
+    if (error || !stored) return toast.error(`Could not save: ${error}`)
+    await audit(supabase, 'settings_saved', { changed, autopilot_mode: value.autopilot_mode })
+    setSaved(stored)
+    setForm(stored)
     toast.success('Saved. n8n uses these from its next run.')
+  }
+
+  async function setPaused(paused: boolean) {
+    setPausing(true)
+    const { error, value } = await patchSettings(supabase, { paused })
+    if (!error) await audit(supabase, paused ? 'paused' : 'resumed', { via: 'settings' })
+    setPausing(false)
+    if (error || !value) return toast.error(`Could not ${paused ? 'pause' : 'resume'}: ${error}`)
+    setSaved(prev => ({ ...prev, paused }))
+    setForm(prev => ({ ...prev, paused }))
+    window.dispatchEvent(new Event(SETTINGS_CHANGED))
+    toast.success(paused ? 'Paused. Nothing will be scraped, drafted or sent.' : 'Resumed.')
+  }
+
+  async function sendDigestNow() {
+    setSendingDigest(true)
+    const res = await triggerWorkflow('WF-6-Digest')
+    setSendingDigest(false)
+    if (res.ok) toast.success(`Digest on its way to ${saved.owner_email}. It can take a minute to arrive.`)
+    else toast.error(res.error ?? 'Could not start the digest.')
   }
 
   function discard() {
@@ -144,6 +194,59 @@ export default function SettingsPage() {
         <div className="skeleton" style={{ height: 420, borderRadius: 14, maxWidth: 880 }} />
       ) : (
         <div className="set-page">
+          <Section wide title="Autopilot" desc="How much runs without you. Scraping, scoring and drafting always run on their own; this decides who presses send.">
+            <div className="mode-grid" role="radiogroup" aria-label="Autopilot mode">
+              {MODES.map(m => (
+                <button
+                  key={m.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.autopilot_mode === m.key}
+                  className={`mode-card ${form.autopilot_mode === m.key ? 'on' : ''}`}
+                  onClick={() => patch({ autopilot_mode: m.key })}
+                >
+                  <span className="mode-title">{m.title}{m.tag && <span className="badge accent as-is" style={{ marginLeft: 8 }}>{m.tag}</span>}</span>
+                  <span className="mode-text">{m.text}</span>
+                </button>
+              ))}
+            </div>
+            {form.autopilot_mode !== 'manual' && (
+              <>
+                <Row label="Send the daily email to" htmlFor="owner_email" hint="Reply YES, STOP ALL or RESUME to it. Only replies from this address count.">
+                  <input id="owner_email" type="email" className="input" placeholder="you@example.com" value={form.owner_email} onChange={e => patch({ owner_email: e.target.value })} />
+                </Row>
+                <Row label="Daily email time" htmlFor="digest_hour" hint={`Your time zone (${form.timezone.replace(/_/g, ' ')}).`}>
+                  <select id="digest_hour" className="input set-select" value={form.digest_hour} onChange={e => patch({ digest_hour: Number(e.target.value) })}>
+                    {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
+                  </select>
+                </Row>
+              </>
+            )}
+            {form.autopilot_mode === 'auto' && (
+              <Row label="Auto-send score" htmlFor="auto_min" hint="Drafts for leads at or above this go straight to the send schedule. 85+ keeps it to your strongest leads.">
+                <div className="row" style={{ gap: 12, width: '100%' }}>
+                  <input id="auto_min" type="range" min={60} max={100} step={5} value={form.auto_min_score} onChange={e => patch({ auto_min_score: Number(e.target.value) })} className="range" />
+                  <span className="score high set-score">{form.auto_min_score}</span>
+                </div>
+              </Row>
+            )}
+            <Row label="STOP ALL" htmlFor="paused" hint="Pauses scraping, drafting and sending right away. You can also reply STOP ALL to the daily email.">
+              <div className="row" style={{ gap: 10 }}>
+                {pausing && <Spinner />}
+                <span className={form.paused ? 'overdue' : 'subtle'} style={{ fontSize: 13 }}>{form.paused ? 'Paused' : 'Running'}</span>
+                <Toggle id="paused" checked={form.paused} onChange={v => setPaused(v)} />
+              </div>
+            </Row>
+            {saved.autopilot_mode !== 'manual' && saved.owner_email && (
+              <div className="set-section-foot">
+                <span className="hint">Want to see what it looks like? The email goes to {saved.owner_email}.</span>
+                <button className="btn btn-sm" onClick={sendDigestNow} disabled={sendingDigest || dirty}>
+                  {sendingDigest && <Spinner />} Send me today&apos;s email now
+                </button>
+              </div>
+            )}
+          </Section>
+
           <Section title="Who gets an email" desc="Used by Score & enrich and Draft outreach.">
             <Row label="Minimum AI score" htmlFor="min_score" hint="Leads below this are not drafted. 60 is a good start. Lowering it only affects leads scored from now on.">
               <div className="row" style={{ gap: 12, width: '100%' }}>
@@ -234,7 +337,7 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          <Section wide title="Connections" desc="Checked on the server. Secret values never reach the browser.">
+          <Section wide id="connections" title="Connections" desc="Checked on the server. Secret values never reach the browser.">
             <div className="set-conn">
               <div className="set-conn-item">
                 <span className="integration-icon"><IconDatabase /></span>

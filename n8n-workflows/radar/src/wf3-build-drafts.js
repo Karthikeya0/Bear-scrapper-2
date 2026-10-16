@@ -53,6 +53,9 @@ const finishEmail = (body, kind) => {
 }
 const rows = []
 const failed = []
+// Autopilot "auto": strong leads skip review and go straight to the send schedule (still capped by daily_max).
+const AUTO = cfg.autopilot_mode === 'auto' && cfg.paused !== true
+const AUTO_MIN = Number(cfg.auto_min_score) || 85
 
 $input.all().forEach((item, i) => {
   const p = planFor(i)
@@ -66,7 +69,11 @@ $input.all().forEach((item, i) => {
     if (p.kind === 'followup') subject = p.fallback_subject
     if (!subject || body.length < 40) throw new Error('empty subject or body')
     if (p.channel === 'email') body = finishEmail(body, p.kind)
-    rows.push({ lead_id: p.lead_id, subject, body, status: 'pending_review', sequence_step: p.sequence_step, channel: p.channel })
+    const auto = AUTO && p.channel === 'email' && Number(p.ai_score) >= AUTO_MIN
+    rows.push({
+      lead_id: p.lead_id, subject, body, sequence_step: p.sequence_step, channel: p.channel,
+      status: auto ? 'scheduled' : 'pending_review', approved_at: auto ? new Date().toISOString() : null,
+    })
   } catch (e) {
     const reason = res.error ? errorText(res.error) : String(e.message || e)
     failed.push({ lead: p.lead_id, kind: p.kind, message: `Draft failed: ${reason.slice(0, 200)}` })

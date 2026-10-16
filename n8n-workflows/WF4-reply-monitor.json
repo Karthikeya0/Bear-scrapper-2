@@ -2,7 +2,7 @@
   "name": "WF-4: Reply Monitor",
   "nodes": [
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000131",
+      "id": "b3a5e7c1-0000-4000-8000-000000000151",
       "name": "Every 30 minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000133",
+      "id": "b3a5e7c1-0000-4000-8000-000000000153",
       "name": "Dashboard: Check replies",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -37,7 +37,7 @@
         "responseMode": "onReceived",
         "options": {}
       },
-      "webhookId": "7e1f0b2a-0000-4000-8000-000000000132",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000152",
       "credentials": {
         "httpHeaderAuth": {
           "id": "bearDashboardSecret",
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000137",
+      "id": "b3a5e7c1-0000-4000-8000-000000000157",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -59,19 +59,19 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c0f19a00-0000-4000-8000-000000000134",
+              "id": "c0f19a00-0000-4000-8000-000000000154",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT-REF.supabase.co",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000135",
+              "id": "c0f19a00-0000-4000-8000-000000000155",
               "name": "lookback_days",
               "value": 3,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000136",
+              "id": "c0f19a00-0000-4000-8000-000000000156",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -83,12 +83,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000138",
+      "id": "b3a5e7c1-0000-4000-8000-000000000158",
       "name": "Gmail: recent inbox",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        440,
+        880,
         100
       ],
       "parameters": {
@@ -113,12 +113,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000139",
+      "id": "b3a5e7c1-0000-4000-8000-000000000159",
       "name": "Sent threads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        660,
+        1100,
         100
       ],
       "parameters": {
@@ -145,12 +145,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000140",
+      "id": "b3a5e7c1-0000-4000-8000-000000000160",
       "name": "Contacted leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
+        1320,
         100
       ],
       "parameters": {
@@ -177,12 +177,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000141",
+      "id": "b3a5e7c1-0000-4000-8000-000000000161",
       "name": "Find replies & bounces",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
+        1540,
         100
       ],
       "parameters": {
@@ -192,12 +192,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000143",
+      "id": "b3a5e7c1-0000-4000-8000-000000000163",
       "name": "Anything found?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1320,
+        1760,
         100
       ],
       "parameters": {
@@ -209,7 +209,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000142",
+              "id": "1f0c0d00-0000-4000-8000-000000000162",
               "leftValue": "={{ !!$json.lead_id }}",
               "rightValue": "",
               "operator": {
@@ -225,12 +225,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000144",
+      "id": "b3a5e7c1-0000-4000-8000-000000000164",
       "name": "Update lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1540,
+        1980,
         0
       ],
       "parameters": {
@@ -268,12 +268,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000145",
+      "id": "b3a5e7c1-0000-4000-8000-000000000165",
       "name": "Cancel follow-ups",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
+        2200,
         0
       ],
       "parameters": {
@@ -311,12 +311,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000146",
+      "id": "b3a5e7c1-0000-4000-8000-000000000166",
       "name": "Run summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
+        2420,
         100
       ],
       "parameters": {
@@ -325,12 +325,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000147",
+      "id": "b3a5e7c1-0000-4000-8000-000000000167",
       "name": "Write run log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2200,
+        2640,
         100
       ],
       "parameters": {
@@ -366,6 +366,481 @@
           "name": "Supabase account"
         }
       }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000169",
+      "name": "Commands on?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000168",
+              "leftValue": "={{ !!$('Settings').first().json.owner_email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000170",
+      "name": "Gmail: owner replies",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        420
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 20,
+        "simple": true,
+        "filters": {
+          "q": "={{ 'from:' + $('Settings').first().json.owner_email + ' subject:\"Bear Radar\" newer_than:3d' }}"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bearGmail",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000171",
+      "name": "Recent digests",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        420
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/audit_log?select=details,created_at&action=eq.digest_sent&created_at=gte.{{ encodeURIComponent($now.minus({ days: 3 }).toUTC().toISO()) }}&order=created_at.desc&limit=20",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000172",
+      "name": "Handled commands",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        420
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/audit_log?select=details&action=eq.owner_command&created_at=gte.{{ encodeURIComponent($now.minus({ days: 5 }).toUTC().toISO()) }}&limit=500",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000173",
+      "name": "Read owner commands",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// WF-4 \"Read owner commands\" (Code node, Run Once for All Items).\n// Turns your one-word replies to the daily digest into actions:\n//   YES / SEND / APPROVE  -> schedule the drafts listed in THAT digest (never anything else)\n//   STOP ALL / STOP / PAUSE -> paused = true      RESUME / START -> paused = false\n// A reply only counts if it comes from the owner email, quotes a digest code ([#ABC123]) sent in the\n// last 3 days, and has not been handled before (each Gmail message is acted on once).\nconst cfg = $('Settings').first().json\nconst owner = String(cfg.owner_email || '').toLowerCase()\nconst digests = new Map(\n  $('Recent digests').all().map(i => i.json).filter(r => r && r.details && r.details.code).map(r => [r.details.code, r.details]),\n)\nconst handled = new Set(\n  $('Handled commands').all().map(i => i.json).filter(r => r && r.details).map(r => r.details.message_id),\n)\n\nconst emailOf = from => (String(from || '').match(/<([^>]+)>/) || [null, from])[1].trim().toLowerCase()\nconst messages = $('Gmail: owner replies').all().map(i => i.json).filter(m => m && m.id && !m.error)\n  .sort((a, b) => Number(a.internalDate || 0) - Number(b.internalDate || 0))\n\nconst approve = new Set()\nlet pause = null\nconst audit = []\nconst done = []\nfor (const m of messages) {\n  if (handled.has(m.id)) continue\n  const subject = String(m.Subject || m.subject || '')\n  const code = (subject.match(/\\[#([A-Z0-9]{6})\\]/) || [])[1]\n  if (!/^re:/i.test(subject.trim()) || !code || !digests.has(code)) continue\n  if (emailOf(m.From || m.from) !== owner) continue\n  const word = String(m.snippet || m.text || '').trim().split(/\\r?\\n/)[0].toUpperCase().replace(/[^A-Z ]/g, ' ').trim()\n  let command = 'unknown'\n  if (/^(YES|Y|SEND|APPROVE|OK|GO)\\b/.test(word)) command = 'approve'\n  else if (/^(STOP ALL|STOP|PAUSE)\\b/.test(word)) command = 'pause'\n  else if (/^(RESUME|START|UNPAUSE)\\b/.test(word)) command = 'resume'\n  if (command === 'approve') {\n    const ids = digests.get(code).outreach_ids || []\n    ids.forEach(id => approve.add(id))\n    done.push(`Scheduled ${ids.length} draft${ids.length === 1 ? '' : 's'} from digest #${code}.`)\n  } else if (command === 'pause') {\n    pause = true\n    done.push('Paused. Nothing will be scraped, drafted or sent until you reply RESUME.')\n  } else if (command === 'resume') {\n    pause = false\n    done.push('Resumed. Scheduled emails will go out in your send window again.')\n  }\n  audit.push({ actor: 'owner-email', action: 'owner_command', details: { message_id: m.id, code, command, text: word.slice(0, 40) } })\n}\n\nconst saved = $('Load dashboard settings').first().json\nconst value = { ...(saved && saved.value && typeof saved.value === 'object' ? saved.value : {}), ...(pause === null ? {} : { paused: pause }) }\nif (pause !== null) audit.push({ actor: 'owner-email', action: pause ? 'paused' : 'resumed', details: {} })\nif (approve.size) audit.push({ actor: 'owner-email', action: 'approved_all', details: { outreach_ids: [...approve], count: approve.size } })\n\nreturn [{\n  json: {\n    approve_ids: [...approve],\n    pause,\n    settings_value: value,\n    audit,\n    confirm: done.length ? done.join('\\n') + '\\n\\n— Bear Radar' : null,\n  },\n}]\n"
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000175",
+      "name": "Approve drafts?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000174",
+              "leftValue": "={{ $('Read owner commands').first().json.approve_ids.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000176",
+      "name": "Schedule approved drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        360
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?id=in.({{ $('Read owner commands').first().json.approve_ids.join(',') }})&status=eq.pending_review&channel=eq.email",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'scheduled', approved_at: new Date().toISOString() }) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000178",
+      "name": "Pause changed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000177",
+              "leftValue": "={{ $('Read owner commands').first().json.pause !== null }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000179",
+      "name": "Save pause",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        360
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/settings?on_conflict=key",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([{ key: 'outreach', value: $('Read owner commands').first().json.settings_value, updated_at: new Date().toISOString() }]) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000181",
+      "name": "Commands found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000180",
+              "leftValue": "={{ $('Read owner commands').first().json.audit.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000182",
+      "name": "Audit: owner commands",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        360
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/audit_log",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Read owner commands').first().json.audit) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000184",
+      "name": "Confirm to owner?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000183",
+              "leftValue": "={{ !!$('Read owner commands').first().json.confirm }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000185",
+      "name": "Gmail: confirm to owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3520,
+        360
+      ],
+      "parameters": {
+        "sendTo": "={{ $('Settings').first().json.owner_email }}",
+        "subject": "Bear Radar: done",
+        "emailType": "text",
+        "message": "={{ $('Read owner commands').first().json.confirm }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bearGmail",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000186",
+      "name": "Load dashboard settings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/settings?key=eq.outreach&select=value",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000187",
+      "name": "Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"paused\":\"paused\",\"owner_email\":\"owner_email\",\"autopilot_mode\":\"autopilot_mode\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
+      }
     }
   ],
   "connections": {
@@ -395,7 +870,7 @@
       "main": [
         [
           {
-            "node": "Gmail: recent inbox",
+            "node": "Load dashboard settings",
             "type": "main",
             "index": 0
           }
@@ -491,6 +966,179 @@
         [
           {
             "node": "Write run log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Commands on?": {
+      "main": [
+        [
+          {
+            "node": "Gmail: owner replies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: owner replies": {
+      "main": [
+        [
+          {
+            "node": "Recent digests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recent digests": {
+      "main": [
+        [
+          {
+            "node": "Handled commands",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handled commands": {
+      "main": [
+        [
+          {
+            "node": "Read owner commands",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read owner commands": {
+      "main": [
+        [
+          {
+            "node": "Approve drafts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve drafts?": {
+      "main": [
+        [
+          {
+            "node": "Schedule approved drafts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pause changed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule approved drafts": {
+      "main": [
+        [
+          {
+            "node": "Pause changed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause changed?": {
+      "main": [
+        [
+          {
+            "node": "Save pause",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Commands found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save pause": {
+      "main": [
+        [
+          {
+            "node": "Commands found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Commands found?": {
+      "main": [
+        [
+          {
+            "node": "Audit: owner commands",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit: owner commands": {
+      "main": [
+        [
+          {
+            "node": "Confirm to owner?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm to owner?": {
+      "main": [
+        [
+          {
+            "node": "Gmail: confirm to owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load dashboard settings": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Gmail: recent inbox",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Commands on?",
             "type": "main",
             "index": 0
           }

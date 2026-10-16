@@ -4,6 +4,8 @@
 // one in the dashboard skip this and go out immediately.
 
 const cfg = $('Settings').first().json
+// STOP ALL (dashboard banner, Settings, or an emailed "STOP ALL"): nothing scheduled goes out until resumed.
+if (cfg.paused === true) return []
 const tz = cfg.timezone || 'UTC'
 const parts = Object.fromEntries(
   new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23', weekday: 'short' })

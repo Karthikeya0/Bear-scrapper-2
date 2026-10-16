@@ -2,7 +2,16 @@
 // that row on every run ("Load dashboard settings" -> "Settings" nodes). Defaults match the workflows' Config nodes.
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+export type AutopilotMode = 'manual' | 'digest' | 'auto'
+
 export type OutreachSettings = {
+  /** manual: approve in the dashboard. digest: daily email, reply YES to send. auto: high scores are scheduled without asking. */
+  autopilot_mode: AutopilotMode
+  auto_min_score: number
+  /** STOP ALL: every scheduled workflow skips its run until resumed. */
+  paused: boolean
+  digest_hour: number
+  owner_email: string
   min_score: number
   drafts_per_run: number
   follow_up_days: number[]
@@ -20,6 +29,11 @@ export type OutreachSettings = {
 }
 
 export const DEFAULT_SETTINGS: OutreachSettings = {
+  autopilot_mode: 'manual',
+  auto_min_score: 85,
+  paused: false,
+  digest_hour: 9,
+  owner_email: '',
   min_score: 60,
   drafts_per_run: 10,
   follow_up_days: [4, 7],
@@ -42,4 +56,20 @@ export async function loadSettings(supabase: SupabaseClient): Promise<{ settings
   const { data, error } = await supabase.from('settings').select('value').eq('key', SETTINGS_KEY).maybeSingle()
   const saved = (data?.value ?? {}) as Partial<OutreachSettings>
   return { settings: { ...DEFAULT_SETTINGS, ...saved }, error: error?.message }
+}
+
+/** Saves only the given fields, keeping everything else in the row (n8n may have changed `paused`). */
+export async function patchSettings(supabase: SupabaseClient, patch: Partial<OutreachSettings>) {
+  const { data, error: readError } = await supabase.from('settings').select('value').eq('key', SETTINGS_KEY).maybeSingle()
+  if (readError) return { error: readError.message }
+  const value = { ...DEFAULT_SETTINGS, ...((data?.value ?? {}) as Partial<OutreachSettings>), ...patch }
+  const { error } = await supabase.from('settings').upsert({ key: SETTINGS_KEY, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  return { error: error?.message, value }
+}
+
+/** Append-only audit trail (see migration 006). Never throws: auditing must not block the action itself. */
+export async function audit(supabase: SupabaseClient, action: string, details: Record<string, unknown> = {}, ids: { lead_id?: string; outreach_id?: string } = {}) {
+  try {
+    await supabase.from('audit_log').insert({ actor: 'dashboard', action, details, ...ids })
+  } catch {}
 }

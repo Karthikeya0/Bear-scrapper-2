@@ -38,6 +38,11 @@ const RULES = {
   company_name: text,
   website: text,
   from_name: text,
+  paused: bool,
+  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),
+  auto_min_score: num(50, 100),
+  digest_hour: num(0, 23),
+  owner_email: v => (typeof v === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),
 }
 
 const applied = []

@@ -2,7 +2,7 @@
   "name": "WF-3: Draft Outreach",
   "nodes": [
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000057",
+      "id": "b3a5e7c1-0000-4000-8000-000000000065",
       "name": "Every 3 hours",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000059",
+      "id": "b3a5e7c1-0000-4000-8000-000000000067",
       "name": "Dashboard: Draft outreach",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -37,7 +37,7 @@
         "responseMode": "onReceived",
         "options": {}
       },
-      "webhookId": "7e1f0b2a-0000-4000-8000-000000000058",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000066",
       "credentials": {
         "httpHeaderAuth": {
           "id": "bearDashboardSecret",
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000072",
+      "id": "b3a5e7c1-0000-4000-8000-000000000084",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -59,73 +59,97 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c0f19a00-0000-4000-8000-000000000060",
+              "id": "c0f19a00-0000-4000-8000-000000000068",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT-REF.supabase.co",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000061",
+              "id": "c0f19a00-0000-4000-8000-000000000069",
               "name": "batch_size",
               "value": 10,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000062",
+              "id": "c0f19a00-0000-4000-8000-000000000070",
               "name": "min_score",
               "value": 60,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000063",
+              "id": "c0f19a00-0000-4000-8000-000000000071",
               "name": "follow_up_days",
               "value": "4,7",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000064",
+              "id": "c0f19a00-0000-4000-8000-000000000072",
               "name": "draft_dms",
               "value": true,
               "type": "boolean"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000065",
+              "id": "c0f19a00-0000-4000-8000-000000000073",
               "name": "sign_off",
               "value": "Cheers,",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000066",
+              "id": "c0f19a00-0000-4000-8000-000000000074",
               "name": "sender_name",
               "value": "Karthikeya Popuri",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000067",
+              "id": "c0f19a00-0000-4000-8000-000000000075",
               "name": "company_name",
               "value": "Bear Studios",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000068",
+              "id": "c0f19a00-0000-4000-8000-000000000076",
               "name": "website",
               "value": "bearstudios.in",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000069",
+              "id": "c0f19a00-0000-4000-8000-000000000077",
+              "name": "autopilot_mode",
+              "value": "manual",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000078",
+              "name": "auto_min_score",
+              "value": 85,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000079",
+              "name": "daily_max",
+              "value": 20,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000080",
+              "name": "paused",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000081",
               "name": "groq_url",
               "value": "https://api.groq.com/openai/v1/chat/completions",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000070",
+              "id": "c0f19a00-0000-4000-8000-000000000082",
               "name": "groq_model",
               "value": "openai/gpt-oss-120b",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000071",
+              "id": "c0f19a00-0000-4000-8000-000000000083",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -137,12 +161,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000073",
+      "id": "b3a5e7c1-0000-4000-8000-000000000085",
       "name": "Fetch leads to draft",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        900,
+        1340,
         100
       ],
       "parameters": {
@@ -169,12 +193,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000074",
+      "id": "b3a5e7c1-0000-4000-8000-000000000086",
       "name": "Fetch DM leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1120,
+        1560,
         100
       ],
       "parameters": {
@@ -201,12 +225,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000075",
+      "id": "b3a5e7c1-0000-4000-8000-000000000087",
       "name": "Fetch follow-ups",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1340,
+        1780,
         100
       ],
       "parameters": {
@@ -233,27 +257,59 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000076",
+      "id": "b3a5e7c1-0000-4000-8000-000000000088",
+      "name": "Waiting drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1890,
+        240
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?select=id&channel=eq.email&status=in.(pending_review,scheduled)&limit=1000",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000089",
       "name": "Plan drafts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1560,
+        2000,
         100
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// WF-3 \"Plan drafts\" (Code node, Run Once for All Items).\n// Reads the three Supabase lookups and decides what to write this run, newest work first:\n//   1. follow-ups  – leads emailed N days ago who have not replied (step 2, then step 3)\n//   2. first email – qualified leads with an email that have never had a draft\n//   3. DM          – qualified leads with no email but an X or LinkedIn profile\n// Output: one item per draft with the Groq prompt ready (system + user) and the row fields to save.\n\nconst cfg = $('Settings').first().json\nconst MAX = Number(cfg.batch_size) || 10\nconst FOLLOW_UP_DAYS = String(cfg.follow_up_days || '4,7').split(',').map(n => Number(n.trim())).filter(n => n > 0)\nconst MAX_STEP = 1 + FOLLOW_UP_DAYS.length\nconst DAY = 86400000\nconst PENDING = new Set(['pending_review', 'scheduled', 'approved'])\n\nconst rows = name => $(name).all().map(i => i.json).filter(l => l && l.id)\nconst hookOf = l => String(l.ai_reasoning || '').match(/Hook:\\s*(.+)/i)?.[1]?.trim() || null\nconst firstName = l => {\n  const f = String(l.name || '').trim().split(/\\s+/)[0] || ''\n  // Only a real-looking name (\"Maya\"); handles like \"klntsky\" or \"jdoe42\" fall back to \"Hi <Company> team,\".\n  return /^[A-Z](?=.*[a-z])[A-Za-z'-]+$/.test(f) ? f : null\n}\nconst facts = l => [\n  'Founder first name: ' + (firstName(l) || 'unknown'),\n  'Founder role: ' + (l.founder_role || 'unknown'),\n  'Company: ' + (l.company || '?'),\n  'Website: ' + (l.website || l.company_domain || '?'),\n  'Launched: ' + (l.launched_at || 'unknown') + ' (found on ' + l.source + ')',\n  'Homepage has a product video: ' + (l.has_video === null || l.has_video === undefined ? 'unknown' : l.has_video ? 'yes' : 'no'),\n  'Signals: ' + (Array.isArray(l.signals) ? l.signals.join(', ') : ''),\n  'Hook (a specific detail about them): ' + (hookOf(l) || 'none'),\n  'What they built / said: ' + String(l.bio || l.post_content || '').slice(0, 1200),\n]\n\n// What Bear Studios is, from the one-pager. The model may only use these facts about us.\nconst STUDIO = [\n  'ABOUT US — Bear Studios (bearstudios.in): motion design and film for startups.',\n  'We make two things: (1) Explainer videos — complex products explained simply, precise motion, clean UI animation and tight scripting, so investors and users get it in under 90 seconds; (2) Product launch videos / promos — smooth, cinematic, data-driven motion graphics that make a product feel inevitable.',\n  'How we work: Brief, Research, Script, Storyboard, Styleframes, Production, Delivery. Two review rounds. Turnaround: explainer 7-12 days, launch video 10-14 days.',\n  'Every video is delivered in 4K in 16:9 (web/YouTube), 9:16 (Reels/Shorts) and 1:1 (LinkedIn/ads). Each client gets a live ClickUp workspace for briefs, storyboards, feedback and deliverables.',\n  'Our standard: obsessive craft — the details nobody notices consciously but everyone feels.',\n].join('\\n')\n\nconst VOICE =\n  'VOICE: a founder writing to another founder. Confident, warm, specific, concise. Short sentences. Plain text only: no markdown, no bullet points, no emojis, no exclamation marks. ' +\n  'Never use: \"I hope this finds you well\", \"I came across\", \"I wanted to reach out\", \"just checking in\", \"touch base\", \"circle back\", \"synergy\", \"game-changer\", \"revolutionize\", \"leverage\", \"cutting-edge\", \"take it to the next level\". ' +\n  'Never invent facts, numbers, client names, results or prices. Only use facts given about them and about us. ' +\n  'Do NOT write a greeting sign-off or signature (no \"Best\", \"Cheers\", name or company at the end) — it is added automatically.'\n\nconst SYS_FIRST = [\n  'You write first-touch cold emails for Bear Studios to the founder of a startup that just launched.',\n  STUDIO,\n  VOICE,\n  'STRUCTURE (4 short paragraphs, 90-140 words in total):',\n  '1. Greeting line: \"Hi <first name>,\" (or \"Hi <Company> team,\" if the name is unknown).',\n  '2. One or two sentences showing you actually looked: a specific, genuine observation about what they built or launched (use the hook). No generic praise.',\n  '3. The gap and the idea: why a video matters for them right now (e.g. new visitors decide in seconds, the product is hard to grasp from text, launch momentum fades fast) and ONE concrete video idea tailored to their product — describe what the video would show in a sentence. Pick the service that fits: no homepage video -> a 60-90 second explainer; just launched -> a launch film plus vertical and square cuts for social.',\n  '4. At most one proof point about how we work (e.g. delivered in 7-12 days, or 4K in every format, or a live workspace) — only if it helps.',\n  '5. A low-friction close: a single soft question such as \"Would a 15-minute call next week be useful?\" or \"Want me to sketch a rough storyline for <Company>?\". Then a final line exactly: \"I\\'ve attached a one-pager on how we work.\"',\n  'SUBJECT: 3-6 words, specific to them, sentence case or lowercase, no clickbait, no \"quick question\".',\n  'Output ONLY JSON: {\"subject\": \"...\", \"body\": \"...\"} where body uses \\\\n\\\\n between paragraphs.',\n].join('\\n')\n\nconst SYS_FOLLOW = [\n  'You write a short follow-up to a cold email from Bear Studios that got no reply. It is sent as a reply in the same Gmail thread, so do not repeat the original pitch or re-introduce us.',\n  STUDIO,\n  VOICE,\n  'Follow-up step 2 (40-80 words): \"Hi <first name>,\" then add genuine value — one new, concrete storyline idea for a video about their product (what the first seconds would show, what the viewer understands by the end). Close with a soft question.',\n  'Follow-up step 3, the last one (30-60 words): \"Hi <first name>,\" then a polite close-the-loop note: you will not follow up again, the door stays open, they can reply any time or book a call at calendly.com/bearstudios-co/30min. No guilt-tripping.',\n  'Output ONLY JSON: {\"subject\": \"Re: <original subject>\", \"body\": \"...\"}',\n].join('\\n')\n\nconst SYS_DM = [\n  'You write a short direct message (X or LinkedIn) from Karthikeya at Bear Studios to the founder of a startup that just launched.',\n  STUDIO,\n  VOICE,\n  'DM rules: 35-70 words, casual but sharp, 2-3 short sentences. Start with \"Hey <first name>\" (or \"Hey\" if unknown). Mention one specific thing about what they launched, one concrete video idea for it, then ask if they would like to see a couple of examples. No links, no sign-off.',\n  'Output ONLY JSON: {\"subject\": \"DM to <company>\", \"body\": \"...\"}',\n].join('\\n')\n\nconst plan = []\nconst seenLead = new Set()\nconst seenEmail = new Set()\nconst add = item => {\n  if (plan.length >= MAX || seenLead.has(item.lead_id)) return\n  if (item.email && seenEmail.has(item.email.toLowerCase())) return\n  seenLead.add(item.lead_id)\n  if (item.email) seenEmail.add(item.email.toLowerCase())\n  plan.push(item)\n}\n\n// 1. Follow-ups\nconst now = Date.now()\nfor (const l of rows('Fetch follow-ups')) {\n  const queue = Array.isArray(l.outreach_queue) ? l.outreach_queue : []\n  if (!l.email || queue.some(q => PENDING.has(q.status))) continue\n  const sent = queue.filter(q => q.status === 'sent' && q.sent_at && (q.channel || 'email') === 'email')\n  if (!sent.length) continue\n  const last = sent.reduce((a, b) => ((b.sequence_step || 1) > (a.sequence_step || 1) ? b : a))\n  const step = (last.sequence_step || 1) + 1\n  if (step > MAX_STEP) continue\n  const waitDays = FOLLOW_UP_DAYS[step - 2]\n  if ((now - Date.parse(last.sent_at)) / DAY < waitDays) continue\n  const first = sent.find(q => (q.sequence_step || 1) === 1) || last\n  add({\n    kind: 'followup', lead_id: l.id, email: l.email, channel: 'email', sequence_step: step,\n    system: SYS_FOLLOW,\n    user: [\n      `This is follow-up step ${step} of ${MAX_STEP}.`,\n      `Original subject: ${first.subject}`,\n      `Original email:\\n${String(first.body || '').slice(0, 1500)}`,\n      ...facts(l),\n    ].join('\\n'),\n    fallback_subject: /^re:/i.test(first.subject || '') ? first.subject : `Re: ${first.subject}`,\n  })\n}\n\n// 2. First emails\nfor (const l of rows('Fetch leads to draft')) {\n  if (!l.email || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue\n  add({ kind: 'first', lead_id: l.id, email: l.email, channel: 'email', sequence_step: 1, system: SYS_FIRST, user: facts(l).join('\\n') })\n}\n\n// 3. DMs for leads without an email\nif (cfg.draft_dms !== false && String(cfg.draft_dms) !== 'false') {\n  for (const l of rows('Fetch DM leads')) {\n    if (l.email || !(l.x_handle || l.linkedin_url) || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue\n    add({ kind: 'dm', lead_id: l.id, email: null, channel: 'dm', sequence_step: 1, system: SYS_DM, user: facts(l).join('\\n') })\n  }\n}\n\nreturn plan.map(json => ({ json }))\n"
+        "jsCode": "// WF-3 \"Plan drafts\" (Code node, Run Once for All Items).\n// Reads the three Supabase lookups and decides what to write this run, newest work first:\n//   1. follow-ups  – leads emailed N days ago who have not replied (step 2, then step 3)\n//   2. first email – qualified leads with an email that have never had a draft\n//   3. DM          – qualified leads with no email but an X or LinkedIn profile\n// Output: one item per draft with the Groq prompt ready (system + user) and the row fields to save.\n\nconst cfg = $('Settings').first().json\nconst MAX = Number(cfg.batch_size) || 10\nconst FOLLOW_UP_DAYS = String(cfg.follow_up_days || '4,7').split(',').map(n => Number(n.trim())).filter(n => n > 0)\nconst MAX_STEP = 1 + FOLLOW_UP_DAYS.length\nconst DAY = 86400000\nconst PENDING = new Set(['pending_review', 'scheduled', 'approved'])\n// Scheduled runs keep at most one day's sending (daily_max) of email drafts waiting, so nothing piles up.\n// Clicking \"Draft new emails\" in the dashboard is not capped.\nconst fromDashboard = $('Dashboard: Draft outreach').isExecuted\nconst waiting = $('Waiting drafts').all().filter(i => i.json && i.json.id).length\nlet firstEmailRoom = fromDashboard ? Infinity : Math.max(0, (Number(cfg.daily_max) || 20) - waiting)\n\nconst rows = name => $(name).all().map(i => i.json).filter(l => l && l.id)\nconst hookOf = l => String(l.ai_reasoning || '').match(/Hook:\\s*(.+)/i)?.[1]?.trim() || null\nconst firstName = l => {\n  const f = String(l.name || '').trim().split(/\\s+/)[0] || ''\n  // Only a real-looking name (\"Maya\"); handles like \"klntsky\" or \"jdoe42\" fall back to \"Hi <Company> team,\".\n  return /^[A-Z](?=.*[a-z])[A-Za-z'-]+$/.test(f) ? f : null\n}\nconst facts = l => [\n  'Founder first name: ' + (firstName(l) || 'unknown'),\n  'Founder role: ' + (l.founder_role || 'unknown'),\n  'Company: ' + (l.company || '?'),\n  'Website: ' + (l.website || l.company_domain || '?'),\n  'Launched: ' + (l.launched_at || 'unknown') + ' (found on ' + l.source + ')',\n  'Homepage has a product video: ' + (l.has_video === null || l.has_video === undefined ? 'unknown' : l.has_video ? 'yes' : 'no'),\n  'Signals: ' + (Array.isArray(l.signals) ? l.signals.join(', ') : ''),\n  'Hook (a specific detail about them): ' + (hookOf(l) || 'none'),\n  'What they built / said: ' + String(l.bio || l.post_content || '').slice(0, 1200),\n]\n\n// What Bear Studios is, from the one-pager. The model may only use these facts about us.\nconst STUDIO = [\n  'ABOUT US — Bear Studios (bearstudios.in): motion design and film for startups.',\n  'We make two things: (1) Explainer videos — complex products explained simply, precise motion, clean UI animation and tight scripting, so investors and users get it in under 90 seconds; (2) Product launch videos / promos — smooth, cinematic, data-driven motion graphics that make a product feel inevitable.',\n  'How we work: Brief, Research, Script, Storyboard, Styleframes, Production, Delivery. Two review rounds. Turnaround: explainer 7-12 days, launch video 10-14 days.',\n  'Every video is delivered in 4K in 16:9 (web/YouTube), 9:16 (Reels/Shorts) and 1:1 (LinkedIn/ads). Each client gets a live ClickUp workspace for briefs, storyboards, feedback and deliverables.',\n  'Our standard: obsessive craft — the details nobody notices consciously but everyone feels.',\n].join('\\n')\n\nconst VOICE =\n  'VOICE: a founder writing to another founder. Confident, warm, specific, concise. Short sentences. Plain text only: no markdown, no bullet points, no emojis, no exclamation marks. ' +\n  'Never use: \"I hope this finds you well\", \"I came across\", \"I wanted to reach out\", \"just checking in\", \"touch base\", \"circle back\", \"synergy\", \"game-changer\", \"revolutionize\", \"leverage\", \"cutting-edge\", \"take it to the next level\". ' +\n  'Never invent facts, numbers, client names, results or prices. Only use facts given about them and about us. ' +\n  'Do NOT write a greeting sign-off or signature (no \"Best\", \"Cheers\", name or company at the end) — it is added automatically.'\n\nconst SYS_FIRST = [\n  'You write first-touch cold emails for Bear Studios to the founder of a startup that just launched.',\n  STUDIO,\n  VOICE,\n  'STRUCTURE (4 short paragraphs, 90-140 words in total):',\n  '1. Greeting line: \"Hi <first name>,\" (or \"Hi <Company> team,\" if the name is unknown).',\n  '2. One or two sentences showing you actually looked: a specific, genuine observation about what they built or launched (use the hook). No generic praise.',\n  '3. The gap and the idea: why a video matters for them right now (e.g. new visitors decide in seconds, the product is hard to grasp from text, launch momentum fades fast) and ONE concrete video idea tailored to their product — describe what the video would show in a sentence. Pick the service that fits: no homepage video -> a 60-90 second explainer; just launched -> a launch film plus vertical and square cuts for social.',\n  '4. At most one proof point about how we work (e.g. delivered in 7-12 days, or 4K in every format, or a live workspace) — only if it helps.',\n  '5. A low-friction close: a single soft question such as \"Would a 15-minute call next week be useful?\" or \"Want me to sketch a rough storyline for <Company>?\". Then a final line exactly: \"I\\'ve attached a one-pager on how we work.\"',\n  'SUBJECT: 3-6 words, specific to them, sentence case or lowercase, no clickbait, no \"quick question\".',\n  'Output ONLY JSON: {\"subject\": \"...\", \"body\": \"...\"} where body uses \\\\n\\\\n between paragraphs.',\n].join('\\n')\n\nconst SYS_FOLLOW = [\n  'You write a short follow-up to a cold email from Bear Studios that got no reply. It is sent as a reply in the same Gmail thread, so do not repeat the original pitch or re-introduce us.',\n  STUDIO,\n  VOICE,\n  'Follow-up step 2 (40-80 words): \"Hi <first name>,\" then add genuine value — one new, concrete storyline idea for a video about their product (what the first seconds would show, what the viewer understands by the end). Close with a soft question.',\n  'Follow-up step 3, the last one (30-60 words): \"Hi <first name>,\" then a polite close-the-loop note: you will not follow up again, the door stays open, they can reply any time or book a call at calendly.com/bearstudios-co/30min. No guilt-tripping.',\n  'Output ONLY JSON: {\"subject\": \"Re: <original subject>\", \"body\": \"...\"}',\n].join('\\n')\n\nconst SYS_DM = [\n  'You write a short direct message (X or LinkedIn) from Karthikeya at Bear Studios to the founder of a startup that just launched.',\n  STUDIO,\n  VOICE,\n  'DM rules: 35-70 words, casual but sharp, 2-3 short sentences. Start with \"Hey <first name>\" (or \"Hey\" if unknown). Mention one specific thing about what they launched, one concrete video idea for it, then ask if they would like to see a couple of examples. No links, no sign-off.',\n  'Output ONLY JSON: {\"subject\": \"DM to <company>\", \"body\": \"...\"}',\n].join('\\n')\n\nconst plan = []\nconst seenLead = new Set()\nconst seenEmail = new Set()\nconst add = item => {\n  if (plan.length >= MAX || seenLead.has(item.lead_id)) return\n  if (item.email && seenEmail.has(item.email.toLowerCase())) return\n  seenLead.add(item.lead_id)\n  if (item.email) seenEmail.add(item.email.toLowerCase())\n  plan.push(item)\n}\n\n// 1. Follow-ups\nconst now = Date.now()\nfor (const l of rows('Fetch follow-ups')) {\n  const queue = Array.isArray(l.outreach_queue) ? l.outreach_queue : []\n  if (!l.email || queue.some(q => PENDING.has(q.status))) continue\n  const sent = queue.filter(q => q.status === 'sent' && q.sent_at && (q.channel || 'email') === 'email')\n  if (!sent.length) continue\n  const last = sent.reduce((a, b) => ((b.sequence_step || 1) > (a.sequence_step || 1) ? b : a))\n  const step = (last.sequence_step || 1) + 1\n  if (step > MAX_STEP) continue\n  const waitDays = FOLLOW_UP_DAYS[step - 2]\n  if ((now - Date.parse(last.sent_at)) / DAY < waitDays) continue\n  const first = sent.find(q => (q.sequence_step || 1) === 1) || last\n  add({\n    kind: 'followup', lead_id: l.id, email: l.email, channel: 'email', sequence_step: step, ai_score: l.ai_score,\n    system: SYS_FOLLOW,\n    user: [\n      `This is follow-up step ${step} of ${MAX_STEP}.`,\n      `Original subject: ${first.subject}`,\n      `Original email:\\n${String(first.body || '').slice(0, 1500)}`,\n      ...facts(l),\n    ].join('\\n'),\n    fallback_subject: /^re:/i.test(first.subject || '') ? first.subject : `Re: ${first.subject}`,\n  })\n}\n\n// 2. First emails\nfor (const l of rows('Fetch leads to draft')) {\n  if (!l.email || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue\n  if (firstEmailRoom <= 0) break\n  const before = plan.length\n  add({ kind: 'first', lead_id: l.id, email: l.email, channel: 'email', sequence_step: 1, ai_score: l.ai_score, system: SYS_FIRST, user: facts(l).join('\\n') })\n  if (plan.length > before) firstEmailRoom--\n}\n\n// 3. DMs for leads without an email\nif (cfg.draft_dms !== false && String(cfg.draft_dms) !== 'false') {\n  for (const l of rows('Fetch DM leads')) {\n    if (l.email || !(l.x_handle || l.linkedin_url) || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue\n    add({ kind: 'dm', lead_id: l.id, email: null, channel: 'dm', sequence_step: 1, system: SYS_DM, user: facts(l).join('\\n') })\n  }\n}\n\nreturn plan.map(json => ({ json }))\n"
       },
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000078",
+      "id": "b3a5e7c1-0000-4000-8000-000000000091",
       "name": "Anything to draft?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1780,
+        2220,
         100
       ],
       "parameters": {
@@ -265,7 +321,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000077",
+              "id": "1f0c0d00-0000-4000-8000-000000000090",
               "leftValue": "={{ !!$json.lead_id }}",
               "rightValue": "",
               "operator": {
@@ -281,12 +337,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000079",
+      "id": "b3a5e7c1-0000-4000-8000-000000000092",
       "name": "One at a time",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        2000,
+        2440,
         100
       ],
       "parameters": {
@@ -295,12 +351,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000080",
+      "id": "b3a5e7c1-0000-4000-8000-000000000093",
       "name": "Groq: write message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2220,
+        2660,
         0
       ],
       "parameters": {
@@ -333,26 +389,26 @@
       "waitBetweenTries": 5000
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000081",
+      "id": "b3a5e7c1-0000-4000-8000-000000000094",
       "name": "Build drafts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2440,
+        2880,
         0
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// WF-3 \"Build drafts\" (Code node, Run Once for All Items).\n// Input: the Groq response(s) for the current loop batch (one draft at a time); each is matched back to its \"Plan drafts\" item.\n// Output: ONE item { rows: [...outreach_queue rows], drafted, failed: [...] }.\n\n// The model is asked for JSON only; take the first {...} block in case it adds any text around it.\nconst parseJson = text => {\n  const raw = String(text || '').trim()\n  const block = raw.match(/\\{[\\s\\S]*\\}/)\n  return JSON.parse(block ? block[0] : raw)\n}\n// n8n reports API errors as '400 - {\"error\":{\"message\":\"...\"}}'; keep the readable part.\nconst errorText = err => {\n  const text = String((err && err.message) || err || 'unknown error')\n  return (text.match(/\"message\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"/) || [])[1] || text\n}\n\nconst cfg = $('Settings').first().json\nconst plan = $('Plan drafts').all().map(i => i.json)\nconst planFor = i => {\n  try {\n    return $('Plan drafts').itemMatching(i).json\n  } catch {\n    return plan[i]\n  }\n}\n\n// One fixed, professional ending for every email (the model is told not to write its own).\nconst SIGNATURE = [cfg.sign_off || 'Cheers,', cfg.sender_name || 'Karthikeya Popuri', cfg.company_name || 'Bear Studios', cfg.website || 'bearstudios.in']\n  .filter(Boolean)\n  .join('\\n')\nconst ATTACH_LINE = \"I've attached a one-pager on how we work.\"\nconst SIGN_OFF = /^(best|cheers|thanks|thank you|regards|warm regards|kind regards|best regards|sincerely|talk soon)[,.!]?$/i\n\n// Drop any sign-off the model added anyway, so the signature never appears twice.\nconst stripSignOff = text => {\n  const lines = text.split('\\n')\n  for (let i = Math.max(0, lines.length - 6); i < lines.length; i++) {\n    if (SIGN_OFF.test(lines[i].trim())) return lines.slice(0, i).join('\\n').trimEnd()\n  }\n  return lines\n    .filter((line, i) => !(i >= lines.length - 3 && /karthikeya|bear studios|bearstudios\\.in/i.test(line) && line.trim().split(/\\s+/).length <= 4))\n    .join('\\n')\n    .trimEnd()\n}\n\nconst finishEmail = (body, kind) => {\n  let text = stripSignOff(body)\n  if (kind === 'first') {\n    text = text.replace(/\\n*I['’]ve attached a one-pager on how we work\\.?\\s*$/i, '')\n    text = `${text.trimEnd()}\\n\\n${ATTACH_LINE}`\n  }\n  return `${text}\\n\\n${SIGNATURE}`\n}\nconst rows = []\nconst failed = []\n\n$input.all().forEach((item, i) => {\n  const p = planFor(i)\n  if (!p) return\n  const res = item.json || {}\n  try {\n    const out = parseJson(res.choices[0].message.content)\n    let subject = String(out.subject || '').replace(/\\s+/g, ' ').trim().slice(0, 120)\n    let body = String(out.body || '').replace(/\\r\\n/g, '\\n').trim()\n    // Follow-ups go out as replies in the original Gmail thread, so keep the original subject.\n    if (p.kind === 'followup') subject = p.fallback_subject\n    if (!subject || body.length < 40) throw new Error('empty subject or body')\n    if (p.channel === 'email') body = finishEmail(body, p.kind)\n    rows.push({ lead_id: p.lead_id, subject, body, status: 'pending_review', sequence_step: p.sequence_step, channel: p.channel })\n  } catch (e) {\n    const reason = res.error ? errorText(res.error) : String(e.message || e)\n    failed.push({ lead: p.lead_id, kind: p.kind, message: `Draft failed: ${reason.slice(0, 200)}` })\n  }\n})\n\nreturn [{ json: { rows, drafted: rows.length, failed } }]\n"
+        "jsCode": "// WF-3 \"Build drafts\" (Code node, Run Once for All Items).\n// Input: the Groq response(s) for the current loop batch (one draft at a time); each is matched back to its \"Plan drafts\" item.\n// Output: ONE item { rows: [...outreach_queue rows], drafted, failed: [...] }.\n\n// The model is asked for JSON only; take the first {...} block in case it adds any text around it.\nconst parseJson = text => {\n  const raw = String(text || '').trim()\n  const block = raw.match(/\\{[\\s\\S]*\\}/)\n  return JSON.parse(block ? block[0] : raw)\n}\n// n8n reports API errors as '400 - {\"error\":{\"message\":\"...\"}}'; keep the readable part.\nconst errorText = err => {\n  const text = String((err && err.message) || err || 'unknown error')\n  return (text.match(/\"message\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"/) || [])[1] || text\n}\n\nconst cfg = $('Settings').first().json\nconst plan = $('Plan drafts').all().map(i => i.json)\nconst planFor = i => {\n  try {\n    return $('Plan drafts').itemMatching(i).json\n  } catch {\n    return plan[i]\n  }\n}\n\n// One fixed, professional ending for every email (the model is told not to write its own).\nconst SIGNATURE = [cfg.sign_off || 'Cheers,', cfg.sender_name || 'Karthikeya Popuri', cfg.company_name || 'Bear Studios', cfg.website || 'bearstudios.in']\n  .filter(Boolean)\n  .join('\\n')\nconst ATTACH_LINE = \"I've attached a one-pager on how we work.\"\nconst SIGN_OFF = /^(best|cheers|thanks|thank you|regards|warm regards|kind regards|best regards|sincerely|talk soon)[,.!]?$/i\n\n// Drop any sign-off the model added anyway, so the signature never appears twice.\nconst stripSignOff = text => {\n  const lines = text.split('\\n')\n  for (let i = Math.max(0, lines.length - 6); i < lines.length; i++) {\n    if (SIGN_OFF.test(lines[i].trim())) return lines.slice(0, i).join('\\n').trimEnd()\n  }\n  return lines\n    .filter((line, i) => !(i >= lines.length - 3 && /karthikeya|bear studios|bearstudios\\.in/i.test(line) && line.trim().split(/\\s+/).length <= 4))\n    .join('\\n')\n    .trimEnd()\n}\n\nconst finishEmail = (body, kind) => {\n  let text = stripSignOff(body)\n  if (kind === 'first') {\n    text = text.replace(/\\n*I['’]ve attached a one-pager on how we work\\.?\\s*$/i, '')\n    text = `${text.trimEnd()}\\n\\n${ATTACH_LINE}`\n  }\n  return `${text}\\n\\n${SIGNATURE}`\n}\nconst rows = []\nconst failed = []\n// Autopilot \"auto\": strong leads skip review and go straight to the send schedule (still capped by daily_max).\nconst AUTO = cfg.autopilot_mode === 'auto' && cfg.paused !== true\nconst AUTO_MIN = Number(cfg.auto_min_score) || 85\n\n$input.all().forEach((item, i) => {\n  const p = planFor(i)\n  if (!p) return\n  const res = item.json || {}\n  try {\n    const out = parseJson(res.choices[0].message.content)\n    let subject = String(out.subject || '').replace(/\\s+/g, ' ').trim().slice(0, 120)\n    let body = String(out.body || '').replace(/\\r\\n/g, '\\n').trim()\n    // Follow-ups go out as replies in the original Gmail thread, so keep the original subject.\n    if (p.kind === 'followup') subject = p.fallback_subject\n    if (!subject || body.length < 40) throw new Error('empty subject or body')\n    if (p.channel === 'email') body = finishEmail(body, p.kind)\n    const auto = AUTO && p.channel === 'email' && Number(p.ai_score) >= AUTO_MIN\n    rows.push({\n      lead_id: p.lead_id, subject, body, sequence_step: p.sequence_step, channel: p.channel,\n      status: auto ? 'scheduled' : 'pending_review', approved_at: auto ? new Date().toISOString() : null,\n    })\n  } catch (e) {\n    const reason = res.error ? errorText(res.error) : String(e.message || e)\n    failed.push({ lead: p.lead_id, kind: p.kind, message: `Draft failed: ${reason.slice(0, 200)}` })\n  }\n})\n\nreturn [{ json: { rows, drafted: rows.length, failed } }]\n"
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000083",
+      "id": "b3a5e7c1-0000-4000-8000-000000000096",
       "name": "Any drafts?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        2660,
+        3100,
         0
       ],
       "parameters": {
@@ -364,7 +420,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000082",
+              "id": "1f0c0d00-0000-4000-8000-000000000095",
               "leftValue": "={{ $json.rows.length > 0 }}",
               "rightValue": "",
               "operator": {
@@ -380,12 +436,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000084",
+      "id": "b3a5e7c1-0000-4000-8000-000000000097",
       "name": "Queue for review",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2880,
+        3320,
         -100
       ],
       "parameters": {
@@ -424,12 +480,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000085",
+      "id": "b3a5e7c1-0000-4000-8000-000000000098",
       "name": "Next draft",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3100,
+        3540,
         -100
       ],
       "parameters": {
@@ -438,26 +494,26 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000086",
+      "id": "b3a5e7c1-0000-4000-8000-000000000099",
       "name": "Run summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2440,
+        2880,
         260
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// WF-3 \"Run summary\" (Code node, Run Once for All Items).\n// One workflow_logs row per run. Drafts are counted in leads_scored (emails_sent stays 0:\n// nothing is sent until you approve a draft in the dashboard).\n\nconst cfg = $('Config').first().json\n// Input: every per-draft result collected by the \"One at a time\" loop (or the single empty plan item when\n// there was nothing to draft).\nconst built = { drafted: 0, failed: [] }\nfor (const { json } of $input.all()) {\n  built.drafted += Number(json.drafted) || 0\n  if (Array.isArray(json.failed)) built.failed.push(...json.failed)\n}\n\nreturn [{\n  json: {\n    workflow_name: 'WF-3-Outreach',\n    status: built.drafted === 0 && built.failed.length > 0 ? 'failed' : 'success',\n    leads_scraped: 0,\n    leads_skipped: built.failed.length,\n    leads_scored: built.drafted,\n    emails_sent: 0,\n    replies_detected: 0,\n    errors: built.failed.length ? built.failed : null,\n    started_at: cfg.started_at,\n    finished_at: new Date().toISOString(),\n  },\n}]\n"
+        "jsCode": "// WF-3 \"Run summary\" (Code node, Run Once for All Items).\n// One workflow_logs row per run. Drafts are counted in leads_scored (emails_sent stays 0:\n// nothing is sent until you approve a draft in the dashboard).\n\nconst cfg = $('Config').first().json\n// Input: every per-draft result collected by the \"One at a time\" loop (or the single empty plan item when\n// there was nothing to draft).\nconst built = { drafted: 0, failed: [] }\nconst audit = []\nfor (const { json } of $input.all()) {\n  built.drafted += Number(json.drafted) || 0\n  if (Array.isArray(json.failed)) built.failed.push(...json.failed)\n  for (const r of Array.isArray(json.rows) ? json.rows : []) {\n    if (r.status === 'scheduled') audit.push({ actor: 'n8n:WF-3', action: 'auto_scheduled', lead_id: r.lead_id, details: { subject: r.subject, sequence_step: r.sequence_step } })\n  }\n}\n\nreturn [{\n  json: {\n    // \"audit\": autopilot decisions (drafts scheduled without review), written to audit_log after the run log.\n    audit,\n    log: {\n      workflow_name: 'WF-3-Outreach',\n      status: built.drafted === 0 && built.failed.length > 0 ? 'failed' : 'success',\n      leads_scraped: 0,\n      leads_skipped: built.failed.length,\n      leads_scored: built.drafted,\n      emails_sent: 0,\n      replies_detected: 0,\n      errors: built.failed.length ? built.failed : null,\n      started_at: cfg.started_at,\n      finished_at: new Date().toISOString(),\n    },\n  },\n}]\n"
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000087",
+      "id": "b3a5e7c1-0000-4000-8000-000000000100",
       "name": "Write run log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2660,
+        3100,
         260
       ],
       "parameters": {
@@ -485,7 +541,7 @@
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json) }}"
+        "jsonBody": "={{ JSON.stringify($json.log) }}"
       },
       "credentials": {
         "supabaseApi": {
@@ -495,7 +551,84 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000088",
+      "id": "b3a5e7c1-0000-4000-8000-000000000102",
+      "name": "Auto-scheduled any?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3320,
+        260
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000101",
+              "leftValue": "={{ $('Run summary').first().json.audit.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000103",
+      "name": "Audit: auto-scheduled",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3540,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/audit_log",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Run summary').first().json.audit) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000104",
       "name": "Load dashboard settings",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -528,7 +661,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000089",
+      "id": "b3a5e7c1-0000-4000-8000-000000000105",
       "name": "Settings",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -538,8 +671,52 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"min_score\":\"min_score\",\"drafts_per_run\":\"batch_size\",\"follow_up_days\":\"follow_up_days\",\"draft_dms\":\"draft_dms\",\"sign_off\":\"sign_off\",\"signature_name\":\"sender_name\",\"company_name\":\"company_name\",\"website\":\"website\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
+        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"min_score\":\"min_score\",\"drafts_per_run\":\"batch_size\",\"follow_up_days\":\"follow_up_days\",\"draft_dms\":\"draft_dms\",\"sign_off\":\"sign_off\",\"signature_name\":\"sender_name\",\"company_name\":\"company_name\",\"website\":\"website\",\"paused\":\"paused\",\"autopilot_mode\":\"autopilot_mode\",\"auto_min_score\":\"auto_min_score\",\"daily_max\":\"daily_max\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
       }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000107",
+      "name": "Paused?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000106",
+              "leftValue": "={{ $json.paused === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000108",
+      "name": "Paused: skip this run",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -60
+      ],
+      "parameters": {}
     }
   ],
   "connections": {
@@ -599,6 +776,17 @@
       ]
     },
     "Fetch follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Waiting drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Waiting drafts": {
       "main": [
         [
           {
@@ -729,11 +917,22 @@
         ]
       ]
     },
-    "Settings": {
+    "Write run log": {
       "main": [
         [
           {
-            "node": "Fetch leads to draft",
+            "node": "Auto-scheduled any?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-scheduled any?": {
+      "main": [
+        [
+          {
+            "node": "Audit: auto-scheduled",
             "type": "main",
             "index": 0
           }
@@ -745,6 +944,35 @@
         [
           {
             "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Paused?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Paused?": {
+      "main": [
+        [
+          {
+            "node": "Paused: skip this run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch leads to draft",
             "type": "main",
             "index": 0
           }

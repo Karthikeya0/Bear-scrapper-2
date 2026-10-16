@@ -7,6 +7,7 @@ export const WORKFLOWS = [
   { key: 'WF-3-Outreach', label: 'Draft outreach', description: 'Write first emails, due follow-ups and X/LinkedIn DMs, and queue them for your review.' },
   { key: 'WF-4-ReplyMonitor', label: 'Check replies', description: 'Read your Gmail inbox, mark leads that replied or bounced, and stop their follow-ups.' },
   { key: 'WF-5-Feedback', label: 'Feedback loop', description: 'Export outcomes as few-shot examples for future prompts.' },
+  { key: 'WF-6-Digest', label: 'Daily digest', description: 'Email you the drafts waiting for approval, yesterday’s results and any problems. Reply YES to send.' },
 ] as const
 
 /** Names that appear in workflow_logs but are not started from the Workflows page. */

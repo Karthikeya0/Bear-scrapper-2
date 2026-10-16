@@ -11,6 +11,11 @@ const FOLLOW_UP_DAYS = String(cfg.follow_up_days || '4,7').split(',').map(n => N
 const MAX_STEP = 1 + FOLLOW_UP_DAYS.length
 const DAY = 86400000
 const PENDING = new Set(['pending_review', 'scheduled', 'approved'])
+// Scheduled runs keep at most one day's sending (daily_max) of email drafts waiting, so nothing piles up.
+// Clicking "Draft new emails" in the dashboard is not capped.
+const fromDashboard = $('Dashboard: Draft outreach').isExecuted
+const waiting = $('Waiting drafts').all().filter(i => i.json && i.json.id).length
+let firstEmailRoom = fromDashboard ? Infinity : Math.max(0, (Number(cfg.daily_max) || 20) - waiting)
 
 const rows = name => $(name).all().map(i => i.json).filter(l => l && l.id)
 const hookOf = l => String(l.ai_reasoning || '').match(/Hook:\s*(.+)/i)?.[1]?.trim() || null
@@ -102,7 +107,7 @@ for (const l of rows('Fetch follow-ups')) {
   if ((now - Date.parse(last.sent_at)) / DAY < waitDays) continue
   const first = sent.find(q => (q.sequence_step || 1) === 1) || last
   add({
-    kind: 'followup', lead_id: l.id, email: l.email, channel: 'email', sequence_step: step,
+    kind: 'followup', lead_id: l.id, email: l.email, channel: 'email', sequence_step: step, ai_score: l.ai_score,
     system: SYS_FOLLOW,
     user: [
       `This is follow-up step ${step} of ${MAX_STEP}.`,
@@ -117,7 +122,10 @@ for (const l of rows('Fetch follow-ups')) {
 // 2. First emails
 for (const l of rows('Fetch leads to draft')) {
   if (!l.email || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue
-  add({ kind: 'first', lead_id: l.id, email: l.email, channel: 'email', sequence_step: 1, system: SYS_FIRST, user: facts(l).join('\n') })
+  if (firstEmailRoom <= 0) break
+  const before = plan.length
+  add({ kind: 'first', lead_id: l.id, email: l.email, channel: 'email', sequence_step: 1, ai_score: l.ai_score, system: SYS_FIRST, user: facts(l).join('\n') })
+  if (plan.length > before) firstEmailRoom--
 }
 
 // 3. DMs for leads without an email

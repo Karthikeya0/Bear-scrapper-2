@@ -2,7 +2,7 @@
   "name": "WF-2: Qualify & Enrich",
   "nodes": [
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000023",
+      "id": "b3a5e7c1-0000-4000-8000-000000000028",
       "name": "Every hour",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000025",
+      "id": "b3a5e7c1-0000-4000-8000-000000000030",
       "name": "Dashboard: Score & enrich",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -37,7 +37,7 @@
         "responseMode": "onReceived",
         "options": {}
       },
-      "webhookId": "7e1f0b2a-0000-4000-8000-000000000024",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000029",
       "credentials": {
         "httpHeaderAuth": {
           "id": "bearDashboardSecret",
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000039",
+      "id": "b3a5e7c1-0000-4000-8000-000000000044",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -59,79 +59,79 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c0f19a00-0000-4000-8000-000000000026",
+              "id": "c0f19a00-0000-4000-8000-000000000031",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT-REF.supabase.co",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000027",
+              "id": "c0f19a00-0000-4000-8000-000000000032",
               "name": "batch_size",
               "value": 25,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000028",
+              "id": "c0f19a00-0000-4000-8000-000000000033",
               "name": "max_team_size",
               "value": 3,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000029",
+              "id": "c0f19a00-0000-4000-8000-000000000034",
               "name": "max_launch_age_days",
               "value": 90,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000030",
+              "id": "c0f19a00-0000-4000-8000-000000000035",
               "name": "max_domain_age_days",
               "value": 730,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000031",
+              "id": "c0f19a00-0000-4000-8000-000000000036",
               "name": "just_launched_days",
               "value": 30,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000032",
+              "id": "c0f19a00-0000-4000-8000-000000000037",
               "name": "min_score",
               "value": 60,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000033",
+              "id": "c0f19a00-0000-4000-8000-000000000038",
               "name": "rdap_base",
               "value": "https://rdap.org",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000034",
+              "id": "c0f19a00-0000-4000-8000-000000000039",
               "name": "hn_user_api",
               "value": "https://hacker-news.firebaseio.com/v0",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000035",
+              "id": "c0f19a00-0000-4000-8000-000000000040",
               "name": "hunter_url",
               "value": "https://api.hunter.io/v2/domain-search",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000036",
+              "id": "c0f19a00-0000-4000-8000-000000000041",
               "name": "groq_url",
               "value": "https://api.groq.com/openai/v1/chat/completions",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000037",
+              "id": "c0f19a00-0000-4000-8000-000000000042",
               "name": "groq_model",
               "value": "openai/gpt-oss-120b",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000038",
+              "id": "c0f19a00-0000-4000-8000-000000000043",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -143,12 +143,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000040",
+      "id": "b3a5e7c1-0000-4000-8000-000000000045",
       "name": "Fetch raw leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        900,
+        1340,
         100
       ],
       "parameters": {
@@ -174,12 +174,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000041",
+      "id": "b3a5e7c1-0000-4000-8000-000000000046",
       "name": "Free checks & qualify",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1120,
+        1560,
         100
       ],
       "parameters": {
@@ -188,12 +188,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000042",
+      "id": "b3a5e7c1-0000-4000-8000-000000000047",
       "name": "Run summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1340,
+        1780,
         360
       ],
       "parameters": {
@@ -202,12 +202,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000043",
+      "id": "b3a5e7c1-0000-4000-8000-000000000048",
       "name": "Write run log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1560,
+        2000,
         360
       ],
       "parameters": {
@@ -245,12 +245,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000045",
+      "id": "b3a5e7c1-0000-4000-8000-000000000050",
       "name": "Qualified?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1340,
+        1780,
         100
       ],
       "parameters": {
@@ -262,7 +262,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000044",
+              "id": "1f0c0d00-0000-4000-8000-000000000049",
               "leftValue": "={{ $json.qualified }}",
               "rightValue": "",
               "operator": {
@@ -278,12 +278,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000047",
+      "id": "b3a5e7c1-0000-4000-8000-000000000052",
       "name": "Need Hunter?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1450,
+        1890,
         -60
       ],
       "parameters": {
@@ -295,7 +295,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000046",
+              "id": "1f0c0d00-0000-4000-8000-000000000051",
               "leftValue": "={{ !$json.site_email }}",
               "rightValue": "",
               "operator": {
@@ -311,12 +311,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000048",
+      "id": "b3a5e7c1-0000-4000-8000-000000000053",
       "name": "Hunter: founder email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1560,
+        2000,
         0
       ],
       "parameters": {
@@ -355,12 +355,12 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000049",
+      "id": "b3a5e7c1-0000-4000-8000-000000000054",
       "name": "Pick founder email",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1780,
+        2220,
         0
       ],
       "parameters": {
@@ -369,12 +369,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000050",
+      "id": "b3a5e7c1-0000-4000-8000-000000000055",
       "name": "Groq: score lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2000,
+        2440,
         0
       ],
       "parameters": {
@@ -413,12 +413,12 @@
       "waitBetweenTries": 5000
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000051",
+      "id": "b3a5e7c1-0000-4000-8000-000000000056",
       "name": "Build lead row",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2220,
+        2660,
         0
       ],
       "parameters": {
@@ -427,12 +427,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000052",
+      "id": "b3a5e7c1-0000-4000-8000-000000000057",
       "name": "Save lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2440,
+        2880,
         0
       ],
       "parameters": {
@@ -471,12 +471,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000053",
+      "id": "b3a5e7c1-0000-4000-8000-000000000058",
       "name": "Mark processed",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2660,
+        3100,
         0
       ],
       "parameters": {
@@ -514,12 +514,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000054",
+      "id": "b3a5e7c1-0000-4000-8000-000000000059",
       "name": "Save disqualified",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2220,
+        2660,
         260
       ],
       "parameters": {
@@ -557,7 +557,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000055",
+      "id": "b3a5e7c1-0000-4000-8000-000000000060",
       "name": "Load dashboard settings",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -590,7 +590,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000056",
+      "id": "b3a5e7c1-0000-4000-8000-000000000061",
       "name": "Settings",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -600,8 +600,52 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"min_score\":\"min_score\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
+        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"min_score\":\"min_score\",\"paused\":\"paused\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
       }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000063",
+      "name": "Paused?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000062",
+              "leftValue": "={{ $json.paused === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000064",
+      "name": "Paused: skip this run",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -60
+      ],
+      "parameters": {}
     }
   ],
   "connections": {
@@ -767,22 +811,40 @@
         ]
       ]
     },
-    "Settings": {
+    "Load dashboard settings": {
       "main": [
         [
           {
-            "node": "Fetch raw leads",
+            "node": "Settings",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Load dashboard settings": {
+    "Settings": {
       "main": [
         [
           {
-            "node": "Settings",
+            "node": "Paused?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Paused?": {
+      "main": [
+        [
+          {
+            "node": "Paused: skip this run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch raw leads",
             "type": "main",
             "index": 0
           }

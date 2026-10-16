@@ -6,6 +6,7 @@ import { Alert, EmptyState, PageHeader, SkeletonRows, Spinner, StatusBadge } fro
 import { IconBolt, IconChevronRight, IconRefresh, IconWorkflow } from '@/components/icons'
 import { formatDateTime, timeAgo } from '@/lib/format'
 import { WORKFLOWS, triggerWorkflow, type WorkflowKey } from '@/lib/workflows'
+import AuditLog from '@/components/AuditLog'
 
 type LogRow = {
   id: string; workflow_name: string; status: string
@@ -230,6 +231,7 @@ export default function RunsPage() {
           </table>
         </div>
       </div>
+      <div style={{ marginTop: 16 }}><AuditLog /></div>
     </>
   )
 }

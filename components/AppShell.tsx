@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useState, useSyncExt
 import { createClient } from '@/lib/supabase/client'
 import type { Role } from '@/lib/env'
 import ActivityMenu from './ActivityMenu'
+import PausedBanner from './PausedBanner'
 import { ToastProvider } from './Toast'
 import {
   IconBolt, IconChart, IconGrid, IconKanban, IconLogout, IconMail, IconMenu, IconPanel, IconSettings, IconTarget, IconUsers,
@@ -224,12 +225,13 @@ export default function AppShell({ email, role, children }: { email: string; rol
             <div className="topbar-spacer" />
             {isOwner && <ActivityMenu />}
             {isOwner && (
-              <Link href="/settings?tab=integrations" className="health-pill" title={health.detail ?? health.label}>
+              <Link href="/settings#connections" className="health-pill" title={health.detail ?? health.label}>
                 <span className={`dot ${health.state === 'loading' ? '' : health.state}`} />
                 <span className="health-label">{health.label}</span>
               </Link>
             )}
           </header>
+          {isOwner && <PausedBanner />}
           <main className="content">{children}</main>
         </div>
       </div>

@@ -9,6 +9,7 @@ export const WORKFLOW_WEBHOOK_MAP: Record<string, string> = {
   'WF-3-Outreach': 'wf3-outreach',
   'WF-4-ReplyMonitor': 'wf4-reply-monitor',
   'WF-5-Feedback': 'wf5-feedback',
+  'WF-6-Digest': 'wf6-digest',
 }
 
 export type N8nResult = { ok: boolean; status: number; error?: string; url?: string }

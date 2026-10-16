@@ -28,6 +28,7 @@ function summary(log: Log) {
     case 'WF-2-Processor': return `${log.leads_scored ?? 0} qualified and saved, ${log.leads_skipped ?? 0} filtered out`
     case 'WF-3-Outreach': return `${log.leads_scored ?? 0} drafts written${log.leads_skipped ? `, ${log.leads_skipped} failed` : ''}`
     case 'WF-3b-SendApproved': return log.status === 'success' ? 'Email sent' : err ?? 'Not sent'
+    case 'WF-6-Digest': return `Daily email sent (${log.leads_scored ?? 0} drafts listed)`
     case 'WF-4-ReplyMonitor': return `${log.replies_detected ?? 0} new replies, ${log.leads_skipped ?? 0} bounces`
     default: return err ?? (log.status === 'success' ? 'Finished' : 'Failed')
   }

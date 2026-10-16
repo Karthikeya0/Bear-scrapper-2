@@ -319,6 +319,11 @@ function buildWf3() {
       sender_name: 'Karthikeya Popuri',
       company_name: 'Bear Studios',
       website: 'bearstudios.in',
+      // Autopilot (set on the dashboard Settings page): manual | digest | auto
+      autopilot_mode: 'manual',
+      auto_min_score: 85,
+      daily_max: 20,
+      paused: false,
       groq_url: 'https://api.groq.com/openai/v1/chat/completions',
       // llama-3.3-70b-versatile was retired by Groq on 2026-08-16; gpt-oss-120b is Groq's recommended replacement.
       groq_model: 'openai/gpt-oss-120b',
@@ -340,6 +345,10 @@ function buildWf3() {
       url:
         `=${SB}/rest/v1/leads?select=*,outreach_queue(id,subject,body,status,sequence_step,sent_at,channel)` +
         '&status=eq.contacted&email=not.is.null&order=first_contacted_at.asc&limit=200',
+      auth: { supabase: true },
+    }, once),
+    http('Waiting drafts', [1010, 240], {
+      url: `=${SB}/rest/v1/outreach_queue?select=id&channel=eq.email&status=in.(pending_review,scheduled)&limit=1000`,
       auth: { supabase: true },
     }, once),
     code('Plan drafts', [1120, 100], 'wf3-plan.js'),
@@ -376,8 +385,17 @@ function buildWf3() {
       auth: { supabase: true },
       responseFormat: 'text',
       headers: [['Prefer', 'return=minimal']],
-      body: '={{ JSON.stringify($json) }}',
+      body: '={{ JSON.stringify($json.log) }}',
     }),
+    ifTrue('Auto-scheduled any?', [2440, 260], "={{ $('Run summary').first().json.audit.length > 0 }}"),
+    http('Audit: auto-scheduled', [2660, 200], {
+      method: 'POST',
+      url: `=${SB}/rest/v1/audit_log`,
+      auth: { supabase: true },
+      responseFormat: 'text',
+      headers: [['Prefer', 'return=minimal']],
+      body: "={{ JSON.stringify($('Run summary').first().json.audit) }}",
+    }, CONTINUE),
   ]
   // Plan emits one empty item when nothing is left to draft, so the run is still logged.
   nodes.find(n => n.name === 'Plan drafts').alwaysOutputData = true
@@ -387,7 +405,8 @@ function buildWf3() {
   link(c, 'Config', 'Fetch leads to draft')
   link(c, 'Fetch leads to draft', 'Fetch DM leads')
   link(c, 'Fetch DM leads', 'Fetch follow-ups')
-  link(c, 'Fetch follow-ups', 'Plan drafts')
+  link(c, 'Fetch follow-ups', 'Waiting drafts')
+  link(c, 'Waiting drafts', 'Plan drafts')
   link(c, 'Plan drafts', 'Anything to draft?')
   link(c, 'Anything to draft?', 'One at a time', 0)
   link(c, 'Anything to draft?', 'Run summary', 1)
@@ -400,6 +419,8 @@ function buildWf3() {
   link(c, 'Queue for review', 'Next draft')
   link(c, 'Next draft', 'One at a time')
   link(c, 'Run summary', 'Write run log')
+  link(c, 'Write run log', 'Auto-scheduled any?')
+  link(c, 'Auto-scheduled any?', 'Audit: auto-scheduled', 0)
   return { name: 'WF-3: Draft Outreach', nodes, connections: c, settings: { executionOrder: 'v1' }, pinData: {} }
 }
 
@@ -525,6 +546,14 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body: "={{ JSON.stringify({ workflow_name: 'WF-3b-SendApproved', status: 'success', emails_sent: 1, started_at: $('Config').first().json.started_at, finished_at: new Date().toISOString() }) }}",
     }),
+    http('Audit: sent', [4620, -100], {
+      method: 'POST',
+      url: `=${SB}/rest/v1/audit_log`,
+      auth: { supabase: true },
+      responseFormat: 'text',
+      headers: [['Prefer', 'return=minimal']],
+      body: `={{ JSON.stringify({ actor: 'n8n:WF-3b', action: 'sent', lead_id: ${Q}.lead_id, outreach_id: ${Q}.id, details: { to: ${Q}.leads.email, subject: ${Q}.subject, step: ${Q}.sequence_step || 1, trigger: $('Dashboard: Approve & send').isExecuted ? 'dashboard' : 'schedule' } }) }}`,
+    }, CONTINUE),
     http('Return to review', [3740, 100], {
       method: 'PATCH',
       url: `=${SB}/rest/v1/outreach_queue?id=eq.{{ ${Q}.id }}&status=eq.approved`,
@@ -575,6 +604,7 @@ function buildWf3b() {
   link(c, 'Mark sent', 'Save history')
   link(c, 'Save history', 'Mark lead contacted')
   link(c, 'Mark lead contacted', 'Log sent')
+  link(c, 'Log sent', 'Audit: sent')
   link(c, 'Return to review', 'Log failure')
   return { name: 'WF-3b: Send Approved', nodes, connections: c, settings: { executionOrder: 'v1' }, pinData: {} }
 }
@@ -638,6 +668,68 @@ function buildWf4() {
       body: '={{ JSON.stringify($json) }}',
     }),
   ]
+  // Your one-word replies to the daily digest (YES / STOP ALL / RESUME). Runs even while paused, so RESUME works.
+  const O = "$('Read owner commands').first().json"
+  nodes.push(
+    ifTrue('Commands on?', [440, 420], "={{ !!$('Settings').first().json.owner_email }}"),
+    node('Gmail: owner replies', 'n8n-nodes-base.gmail', 2.1, [660, 420], {
+      resource: 'message',
+      operation: 'getAll',
+      returnAll: false,
+      limit: 20,
+      simple: true,
+      filters: { q: "={{ 'from:' + $('Settings').first().json.owner_email + ' subject:\"Bear Radar\" newer_than:3d' }}" },
+      options: {},
+    }, { credentials: { gmailOAuth2: { id: 'bearGmail', name: 'Gmail account' } }, ...CONTINUE, ...once }),
+    http('Recent digests', [880, 420], {
+      url: `=${SB}/rest/v1/audit_log?select=details,created_at&action=eq.digest_sent&created_at=gte.{{ encodeURIComponent($now.minus({ days: 3 }).toUTC().toISO()) }}&order=created_at.desc&limit=20`,
+      auth: { supabase: true },
+    }, once),
+    http('Handled commands', [1100, 420], {
+      url: `=${SB}/rest/v1/audit_log?select=details&action=eq.owner_command&created_at=gte.{{ encodeURIComponent($now.minus({ days: 5 }).toUTC().toISO()) }}&limit=500`,
+      auth: { supabase: true },
+    }, once),
+    node('Read owner commands', 'n8n-nodes-base.code', 2, [1320, 420], {
+      mode: 'runOnceForAllItems',
+      // Reads the Gmail results (not the Supabase lookups) as its input.
+      jsCode: src('wf4-owner-commands.js').replace('$input.all()', "$('Gmail: owner replies').all()"),
+    }),
+    ifTrue('Approve drafts?', [1540, 420], `={{ ${O}.approve_ids.length > 0 }}`),
+    http('Schedule approved drafts', [1760, 360], {
+      method: 'PATCH',
+      url: `=${SB}/rest/v1/outreach_queue?id=in.({{ ${O}.approve_ids.join(',') }})&status=eq.pending_review&channel=eq.email`,
+      auth: { supabase: true },
+      responseFormat: 'text',
+      headers: [['Prefer', 'return=minimal']],
+      body: "={{ JSON.stringify({ status: 'scheduled', approved_at: new Date().toISOString() }) }}",
+    }),
+    ifTrue('Pause changed?', [1980, 420], `={{ ${O}.pause !== null }}`),
+    http('Save pause', [2200, 360], {
+      method: 'POST',
+      url: `=${SB}/rest/v1/settings?on_conflict=key`,
+      auth: { supabase: true },
+      responseFormat: 'text',
+      headers: [['Prefer', 'resolution=merge-duplicates,return=minimal']],
+      body: `={{ JSON.stringify([{ key: 'outreach', value: ${O}.settings_value, updated_at: new Date().toISOString() }]) }}`,
+    }),
+    ifTrue('Commands found?', [2420, 420], `={{ ${O}.audit.length > 0 }}`),
+    http('Audit: owner commands', [2640, 360], {
+      method: 'POST',
+      url: `=${SB}/rest/v1/audit_log`,
+      auth: { supabase: true },
+      responseFormat: 'text',
+      headers: [['Prefer', 'return=minimal']],
+      body: `={{ JSON.stringify(${O}.audit) }}`,
+    }),
+    ifTrue('Confirm to owner?', [2860, 420], `={{ !!${O}.confirm }}`),
+    node('Gmail: confirm to owner', 'n8n-nodes-base.gmail', 2.1, [3080, 360], {
+      sendTo: "={{ $('Settings').first().json.owner_email }}",
+      subject: 'Bear Radar: done',
+      emailType: 'text',
+      message: `={{ ${O}.confirm }}`,
+      options: { appendAttribution: false },
+    }, { credentials: { gmailOAuth2: { id: 'bearGmail', name: 'Gmail account' } }, ...CONTINUE }),
+  )
   nodes.find(n => n.name === 'Find replies & bounces').alwaysOutputData = true
   const c = {}
   link(c, 'Every 30 minutes', 'Config')
@@ -652,27 +744,152 @@ function buildWf4() {
   link(c, 'Update lead', 'Cancel follow-ups')
   link(c, 'Cancel follow-ups', 'Run summary')
   link(c, 'Run summary', 'Write run log')
+  link(c, 'Config', 'Commands on?')
+  link(c, 'Commands on?', 'Gmail: owner replies', 0)
+  link(c, 'Gmail: owner replies', 'Recent digests')
+  link(c, 'Recent digests', 'Handled commands')
+  link(c, 'Handled commands', 'Read owner commands')
+  link(c, 'Read owner commands', 'Approve drafts?')
+  link(c, 'Approve drafts?', 'Schedule approved drafts', 0)
+  link(c, 'Approve drafts?', 'Pause changed?', 1)
+  link(c, 'Schedule approved drafts', 'Pause changed?')
+  link(c, 'Pause changed?', 'Save pause', 0)
+  link(c, 'Pause changed?', 'Commands found?', 1)
+  link(c, 'Save pause', 'Commands found?')
+  link(c, 'Commands found?', 'Audit: owner commands', 0)
+  link(c, 'Audit: owner commands', 'Confirm to owner?')
+  link(c, 'Confirm to owner?', 'Gmail: confirm to owner', 0)
   return { name: 'WF-4: Reply Monitor', nodes, connections: c, settings: { executionOrder: 'v1' }, pinData: {} }
+}
+
+// =====================================================================================
+// WF-6: Daily digest — one email to you with the drafts waiting, yesterday's results and problems.
+//   Reply YES / STOP ALL / RESUME to it; WF-4 reads the reply.
+// =====================================================================================
+function buildWf6() {
+  const once = { executeOnce: true, alwaysOutputData: true }
+  const D = "$('Build digest').first().json"
+  const nodes = [
+    schedule('Every hour', [0, 0], { field: 'hours', hoursInterval: 1 }),
+    webhook('Dashboard: Send digest', [0, 200], 'wf6-digest'),
+    config('Config', [220, 100], {
+      supabase_url: 'https://YOUR-PROJECT-REF.supabase.co',
+      // Link in the email. Change it if you open the dashboard at another address.
+      dashboard_url: 'http://localhost:3000',
+      autopilot_mode: 'manual',
+      digest_hour: 9,
+      owner_email: '',
+      timezone: 'Asia/Kolkata',
+      daily_max: 20,
+      send_window_start: 9,
+      send_window_end: 18,
+      paused: false,
+      started_at: '={{ $now.toISO() }}',
+    }),
+    code('Digest due?', [440, 100], 'wf6-due.js'),
+    ifTrue('Due?', [660, 100], '={{ $json.due }}'),
+    http('Drafts waiting', [880, 0], {
+      url: `=${SB}/rest/v1/outreach_queue?select=id,subject,body,created_at,leads(name,company,ai_score,email)&status=eq.pending_review&channel=eq.email&order=created_at.asc&limit=25`,
+      auth: { supabase: true },
+    }, once),
+    http('Scheduled', [1100, 0], {
+      url: `=${SB}/rest/v1/outreach_queue?select=id&status=eq.scheduled&limit=1000`,
+      auth: { supabase: true },
+    }, once),
+    http('Sent last 24h', [1320, 0], {
+      url: `=${SB}/rest/v1/outreach_queue?select=id&status=eq.sent&channel=eq.email&sent_at=gte.{{ encodeURIComponent($now.minus({ hours: 24 }).toUTC().toISO()) }}&limit=1000`,
+      auth: { supabase: true },
+    }, once),
+    http('Replies last 24h', [1540, 0], {
+      url: `=${SB}/rest/v1/leads?select=id,name,company,email&replied_at=gte.{{ encodeURIComponent($now.minus({ hours: 24 }).toUTC().toISO()) }}&limit=50`,
+      auth: { supabase: true },
+    }, once),
+    http('Bounced last 24h', [1760, 0], {
+      url: `=${SB}/rest/v1/leads?select=id&status=eq.bounced&updated_at=gte.{{ encodeURIComponent($now.minus({ hours: 24 }).toUTC().toISO()) }}&limit=500`,
+      auth: { supabase: true },
+    }, { ...once, ...CONTINUE }),
+    http('Failures last 24h', [1980, 0], {
+      url: `=${SB}/rest/v1/workflow_logs?select=workflow_name,errors,created_at&status=eq.failed&created_at=gte.{{ encodeURIComponent($now.minus({ hours: 24 }).toUTC().toISO()) }}&order=created_at.desc&limit=10`,
+      auth: { supabase: true },
+    }, once),
+    http('Digest sent today?', [2200, 0], {
+      url: `=${SB}/rest/v1/audit_log?select=id,created_at&action=eq.digest_sent&created_at=gte.{{ encodeURIComponent($('Digest due?').first().json.day_start) }}&limit=1`,
+      auth: { supabase: true },
+    }, once),
+    code('Build digest', [2420, 0], 'wf6-build-digest.js'),
+    ifTrue('Send it?', [2640, 0], '={{ $json.send }}'),
+    node('Gmail: send digest', 'n8n-nodes-base.gmail', 2.1, [2860, -60], {
+      sendTo: `={{ ${D}.to }}`,
+      subject: `={{ ${D}.subject }}`,
+      emailType: 'text',
+      message: `={{ ${D}.body }}`,
+      options: { appendAttribution: false, senderName: 'Bear Radar' },
+    }, { credentials: { gmailOAuth2: { id: 'bearGmail', name: 'Gmail account' } }, ...RETRY }),
+    http('Audit: digest sent', [3080, -60], {
+      method: 'POST',
+      url: `=${SB}/rest/v1/audit_log`,
+      auth: { supabase: true },
+      responseFormat: 'text',
+      headers: [['Prefer', 'return=minimal']],
+      body: `={{ JSON.stringify(${D}.audit) }}`,
+    }),
+    http('Write run log', [3300, -60], {
+      method: 'POST',
+      url: `=${SB}/rest/v1/workflow_logs`,
+      auth: { supabase: true },
+      responseFormat: 'text',
+      headers: [['Prefer', 'return=minimal']],
+      body: `={{ JSON.stringify(${D}.log) }}`,
+    }),
+  ]
+  const c = {}
+  link(c, 'Every hour', 'Config')
+  link(c, 'Dashboard: Send digest', 'Config')
+  link(c, 'Config', 'Digest due?')
+  link(c, 'Digest due?', 'Due?')
+  link(c, 'Due?', 'Drafts waiting', 0)
+  link(c, 'Drafts waiting', 'Scheduled')
+  link(c, 'Scheduled', 'Sent last 24h')
+  link(c, 'Sent last 24h', 'Replies last 24h')
+  link(c, 'Replies last 24h', 'Bounced last 24h')
+  link(c, 'Bounced last 24h', 'Failures last 24h')
+  link(c, 'Failures last 24h', 'Digest sent today?')
+  link(c, 'Digest sent today?', 'Build digest')
+  link(c, 'Build digest', 'Send it?')
+  link(c, 'Send it?', 'Gmail: send digest', 0)
+  link(c, 'Gmail: send digest', 'Audit: digest sent')
+  link(c, 'Audit: digest sent', 'Write run log')
+  return { name: 'WF-6: Daily Digest', nodes, connections: c, settings: { executionOrder: 'v1' }, pinData: {} }
 }
 
 // Dashboard Settings page -> Config keys, per workflow (see src/settings.js).
 const SETTINGS_MAP = {
-  wf2: { min_score: 'min_score' },
+  wf1: { paused: 'paused' },
+  wf2: { min_score: 'min_score', paused: 'paused' },
   wf3: {
     min_score: 'min_score', drafts_per_run: 'batch_size', follow_up_days: 'follow_up_days', draft_dms: 'draft_dms',
     sign_off: 'sign_off', signature_name: 'sender_name', company_name: 'company_name', website: 'website',
+    paused: 'paused', autopilot_mode: 'autopilot_mode', auto_min_score: 'auto_min_score', daily_max: 'daily_max',
   },
   wf3b: {
     from_name: 'sender_name', daily_max: 'daily_max', send_window_start: 'send_window_start', send_window_end: 'send_window_end',
-    send_on_weekends: 'send_on_weekends', timezone: 'timezone',
+    send_on_weekends: 'send_on_weekends', timezone: 'timezone', paused: 'paused',
+  },
+  wf4: { paused: 'paused', owner_email: 'owner_email', autopilot_mode: 'autopilot_mode' },
+  wf6: {
+    paused: 'paused', autopilot_mode: 'autopilot_mode', digest_hour: 'digest_hour', owner_email: 'owner_email', timezone: 'timezone',
+    daily_max: 'daily_max', send_window_start: 'send_window_start', send_window_end: 'send_window_end',
   },
 }
 
-/** Config -> Load dashboard settings -> Settings -> (whatever Config fed before). Later nodes read $('Settings'). */
-function withDashboardSettings(wf, map) {
+/**
+ * Config -> Load dashboard settings -> Settings -> (whatever Config fed before). Later nodes read $('Settings').
+ * gate: also stop the run while paused (STOP ALL), via a "Paused?" check right after Settings.
+ */
+function withDashboardSettings(wf, map, { gate = false } = {}) {
   const cfg = wf.nodes.find(n => n.name === 'Config')
   const [x, y] = cfg.position
-  for (const n of wf.nodes) if (n.position[0] > x) n.position = [n.position[0] + 440, n.position[1]]
+  for (const n of wf.nodes) if (n.position[0] > x) n.position = [n.position[0] + (gate ? 880 : 440), n.position[1]]
   wf.nodes.push(
     http('Load dashboard settings', [x + 220, y], {
       url: `=${SB}/rest/v1/settings?key=eq.outreach&select=value`,
@@ -685,18 +902,32 @@ function withDashboardSettings(wf, map) {
     }),
   )
   const c = wf.connections
-  c.Settings = c.Config
-  c.Config = { main: [[{ node: 'Load dashboard settings', type: 'main', index: 0 }]] }
+  c.Config = { main: [[{ node: 'Load dashboard settings', type: 'main', index: 0 }]], ...{ _old: c.Config } }
+  const targets = c.Config._old
+  delete c.Config._old
   c['Load dashboard settings'] = { main: [[{ node: 'Settings', type: 'main', index: 0 }]] }
+  if (!gate) {
+    c.Settings = targets
+    return wf
+  }
+  wf.nodes.push(
+    ifTrue('Paused?', [x + 660, y], '={{ $json.paused === true }}'),
+    node('Paused: skip this run', 'n8n-nodes-base.noOp', 1, [x + 880, y - 160], {}),
+  )
+  c.Settings = { main: [[{ node: 'Paused?', type: 'main', index: 0 }]] }
+  c['Paused?'] = { main: [[{ node: 'Paused: skip this run', type: 'main', index: 0 }], targets.main[0]] }
   return wf
 }
 
 for (const [file, wf] of [
-  ['WF1-lead-radar-sources.json', buildWf1()],
-  ['WF2-qualify-enrich.json', withDashboardSettings(buildWf2(), SETTINGS_MAP.wf2)],
-  ['WF3-draft-outreach.json', withDashboardSettings(buildWf3(), SETTINGS_MAP.wf3)],
+  ['WF1-lead-radar-sources.json', withDashboardSettings(buildWf1(), SETTINGS_MAP.wf1, { gate: true })],
+  ['WF2-qualify-enrich.json', withDashboardSettings(buildWf2(), SETTINGS_MAP.wf2, { gate: true })],
+  ['WF3-draft-outreach.json', withDashboardSettings(buildWf3(), SETTINGS_MAP.wf3, { gate: true })],
+  // WF-3b: the pause is checked in "Can send now?" (scheduled sends); the dashboard refuses to send while paused.
   ['WF3b-send-approved.json', withDashboardSettings(buildWf3b(), SETTINGS_MAP.wf3b)],
-  ['WF4-reply-monitor.json', buildWf4()],
+  // WF-4 keeps running while paused: it only protects (stops follow-ups to people who replied) and reads RESUME.
+  ['WF4-reply-monitor.json', withDashboardSettings(buildWf4(), SETTINGS_MAP.wf4)],
+  ['WF6-daily-digest.json', withDashboardSettings(buildWf6(), SETTINGS_MAP.wf6)],
 ]) {
   writeFileSync(out(file), JSON.stringify(wf, null, 2) + '\n')
   console.log(`wrote n8n-workflows/${file} (${wf.nodes.length} nodes)`)

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { DO_NOT_CONTACT } from '@/lib/outreach'
+import { audit } from '@/lib/settings'
 
 /**
  * "Approve all": moves every email draft waiting for review (with an address to send to) to
@@ -31,5 +32,6 @@ export async function POST() {
     .in('id', ids)
     .eq('status', 'pending_review')
   if (updateError) return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 })
+  await audit(supabase, 'approved_all', { via: 'dashboard', count: ids.length, outreach_ids: ids })
   return NextResponse.json({ ok: true, count: ids.length })
 }
