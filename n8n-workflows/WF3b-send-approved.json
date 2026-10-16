@@ -2,7 +2,7 @@
   "name": "WF-3b: Send Approved",
   "nodes": [
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000076",
+      "id": "b3a5e7c1-0000-4000-8000-000000000079",
       "name": "Dashboard: Approve & send",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -17,7 +17,7 @@
         "responseMode": "onReceived",
         "options": {}
       },
-      "webhookId": "7e1f0b2a-0000-4000-8000-000000000075",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000078",
       "credentials": {
         "httpHeaderAuth": {
           "id": "bearDashboardSecret",
@@ -26,7 +26,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000080",
+      "id": "b3a5e7c1-0000-4000-8000-000000000083",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -39,19 +39,19 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c0f19a00-0000-4000-8000-000000000077",
+              "id": "c0f19a00-0000-4000-8000-000000000080",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT-REF.supabase.co",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000078",
+              "id": "c0f19a00-0000-4000-8000-000000000081",
               "name": "sender_name",
               "value": "Bear Studios",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000079",
+              "id": "c0f19a00-0000-4000-8000-000000000082",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -63,7 +63,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000081",
+      "id": "b3a5e7c1-0000-4000-8000-000000000084",
       "name": "Fetch approved email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -94,7 +94,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000083",
+      "id": "b3a5e7c1-0000-4000-8000-000000000086",
       "name": "Ready to send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -111,7 +111,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000082",
+              "id": "1f0c0d00-0000-4000-8000-000000000085",
               "leftValue": "={{ !!$json.id && !!($json.leads && $json.leads.email) && !['unsubscribed', 'bounced', 'dead'].includes($json.leads.status) }}",
               "rightValue": "",
               "operator": {
@@ -127,7 +127,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000084",
+      "id": "b3a5e7c1-0000-4000-8000-000000000087",
       "name": "Gmail: send",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -154,7 +154,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000086",
+      "id": "b3a5e7c1-0000-4000-8000-000000000089",
       "name": "Sent?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -171,7 +171,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000085",
+              "id": "1f0c0d00-0000-4000-8000-000000000088",
               "leftValue": "={{ !!$json.id && !$json.error }}",
               "rightValue": "",
               "operator": {
@@ -187,7 +187,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000087",
+      "id": "b3a5e7c1-0000-4000-8000-000000000090",
       "name": "Mark sent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -230,7 +230,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000088",
+      "id": "b3a5e7c1-0000-4000-8000-000000000091",
       "name": "Save history",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -274,7 +274,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000089",
+      "id": "b3a5e7c1-0000-4000-8000-000000000092",
       "name": "Mark lead contacted",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -317,7 +317,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000090",
+      "id": "b3a5e7c1-0000-4000-8000-000000000093",
       "name": "Log sent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -360,7 +360,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000091",
+      "id": "b3a5e7c1-0000-4000-8000-000000000094",
       "name": "Return to review",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -403,7 +403,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000092",
+      "id": "b3a5e7c1-0000-4000-8000-000000000095",
       "name": "Log failure",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000038",
+      "id": "b3a5e7c1-0000-4000-8000-000000000039",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -108,24 +108,30 @@
             },
             {
               "id": "c0f19a00-0000-4000-8000-000000000034",
+              "name": "hn_user_api",
+              "value": "https://hacker-news.firebaseio.com/v0",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000035",
               "name": "hunter_url",
               "value": "https://api.hunter.io/v2/domain-search",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000035",
+              "id": "c0f19a00-0000-4000-8000-000000000036",
               "name": "groq_url",
               "value": "https://api.groq.com/openai/v1/chat/completions",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000036",
+              "id": "c0f19a00-0000-4000-8000-000000000037",
               "name": "groq_model",
               "value": "llama-3.3-70b-versatile",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000037",
+              "id": "c0f19a00-0000-4000-8000-000000000038",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -137,7 +143,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000039",
+      "id": "b3a5e7c1-0000-4000-8000-000000000040",
       "name": "Fetch raw leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -168,7 +174,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000040",
+      "id": "b3a5e7c1-0000-4000-8000-000000000041",
       "name": "Free checks & qualify",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -178,11 +184,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// WF-2 \"Free checks & qualify\" (Code node, Run Once for All Items).\n// Runs only free lookups, so paid Hunter credits are spent on qualified leads only:\n//   1. resolve the real website (follows Product Hunt / BetaList redirects)\n//   2. homepage: is there a product video? X / LinkedIn links?\n//   3. domain age via RDAP (free, public registry data)\n//   4. small + new + buying-signal rules from the Config node\n// Output: one item per raw lead with `qualified` true/false and `disqualify_reason`.\n\nconst cfg = $('Config').first().json\nconst MAX_TEAM = Number(cfg.max_team_size) || 3\nconst MAX_DOMAIN_DAYS = Number(cfg.max_domain_age_days) || 730\nconst MAX_LAUNCH_DAYS = Number(cfg.max_launch_age_days) || 90\nconst JUST_LAUNCHED_DAYS = Number(cfg.just_launched_days) || 30\nconst RDAP_BASE = String(cfg.rdap_base || 'https://rdap.org').replace(/\\/+$/, '')\nconst UA = 'Mozilla/5.0 (compatible; BearRadar/1.0; +https://bear.studio)'\nconst DAY = 86400000\n\nconst VIDEO_PATTERNS = [\n  /<video[\\s>]/i,\n  /youtube(?:-nocookie)?\\.com\\/(?:embed|watch)|youtu\\.be\\//i,\n  /player\\.vimeo\\.com|vimeo\\.com\\/\\d+/i,\n  /fast\\.wistia\\.(?:net|com)|wistia\\.com\\/medias/i,\n  /loom\\.com\\/(?:embed|share)/i,\n  /vidyard\\.com|videoask\\.com|mux\\.com\\/|stream\\.cloudflare|cloudflarestream\\.com/i,\n  /\\.(?:mp4|webm)(?:[\"'?#\\s])/i,\n]\nconst NON_SITE = /(?:^|\\.)(producthunt\\.com|betalist\\.com|github\\.com|gitlab\\.com|apps\\.apple\\.com|play\\.google\\.com|youtube\\.com|medium\\.com)$/i\n\n// n8n's Code-node sandbox has no global URL, so parse URLs with a regex.\nconst URL_RE = /^(https?):\\/\\/((?:[^@\\/?#]*@)?([^\\/?#:]+)(?::\\d+)?)([^?#]*)/i\nconst hostOf = url => {\n  const m = String(url || '').match(URL_RE)\n  return m ? m[3].toLowerCase().replace(/^www\\./, '') : null\n}\n// Resolve a redirect Location / href against the page it came from.\nconst resolveUrl = (ref, base) => {\n  ref = String(ref || '').trim()\n  if (/^https?:\\/\\//i.test(ref)) return ref\n  const m = String(base).match(URL_RE)\n  if (!m) return ref\n  const [, proto, authority, , path] = m\n  if (ref.startsWith('//')) return `${proto}:${ref}`\n  if (ref.startsWith('/')) return `${proto}://${authority}${ref}`\n  return `${proto}://${authority}${(path || '/').replace(/[^/]*$/, '')}${ref}`\n}\n// Registrable domain for RDAP (good enough for common TLDs, incl. co.uk-style two-part suffixes).\nconst registrable = host => {\n  const parts = host.split('.')\n  const twoPart = /^(co|com|org|net|ac|gov|edu)\\.[a-z]{2}$/.test(parts.slice(-2).join('.'))\n  return parts.slice(twoPart ? -3 : -2).join('.')\n}\n\nasync function get(url, extra = {}) {\n  return this.helpers.httpRequest({\n    url,\n    method: 'GET',\n    headers: { 'User-Agent': UA, Accept: 'text/html,application/json;q=0.9,*/*;q=0.8' },\n    timeout: 12000,\n    returnFullResponse: true,\n    ignoreHttpStatusErrors: true,\n    encoding: 'text',\n    json: false,\n    ...extra,\n  })\n}\n\n// Follow redirects ourselves so we know the final URL (Product Hunt /r/ links, BetaList visit links).\nasync function resolveSite(startUrl) {\n  let url = startUrl\n  for (let hop = 0; hop < 6; hop++) {\n    const res = await get.call(this, url, { disableFollowRedirect: true })\n    const status = res.statusCode\n    const location = res.headers && (res.headers.location || res.headers.Location)\n    if (status >= 300 && status < 400 && location) {\n      url = resolveUrl(location, url)\n      continue\n    }\n    const html = typeof res.body === 'string' ? res.body : String(res.body ?? '')\n    // BetaList / Product Hunt pages: jump to the startup's outbound link if present.\n    const host = hostOf(url)\n    if (host && NON_SITE.test(host) && /betalist\\.com|producthunt\\.com/.test(host)) {\n      const out =\n        html.match(/href=\"(\\/startups\\/[^\"]+\\/visit)\"/i)?.[1] ||\n        html.match(/href=\"(https?:\\/\\/[^\"]+)\"[^>]*(?:rel=\"[^\"]*nofollow[^\"]*\")[^>]*>\\s*(?:visit|website)/i)?.[1]\n      if (out) {\n        url = resolveUrl(out, url)\n        continue\n      }\n    }\n    return { url, status, html: html.slice(0, 600000) }\n  }\n  return { url, status: 0, html: '' }\n}\n\nfunction socials(html) {\n  const handles = [...html.matchAll(/https?:\\/\\/(?:www\\.)?(?:twitter|x)\\.com\\/(@?\\w{1,15})(?=[\"'\\/?#\\s])/gi)]\n    .map(m => m[1].replace(/^@/, ''))\n    .filter(h => !/^(share|intent|home|search|hashtag|i|privacy|tos|login|signup)$/i.test(h))\n  const linkedin = html.match(/https?:\\/\\/(?:[a-z]{2,3}\\.)?linkedin\\.com\\/(?:company|in)\\/[\\w\\-%.]+/i)?.[0] || null\n  return { x_handle: handles[0] || null, linkedin_url: linkedin }\n}\n\nasync function domainCreated(domain) {\n  try {\n    const res = await get.call(this, `${RDAP_BASE}/domain/${domain}`, {\n      headers: { 'User-Agent': UA, Accept: 'application/rdap+json, application/json' },\n    })\n    if (res.statusCode !== 200) return null\n    const data = typeof res.body === 'string' ? JSON.parse(res.body) : res.body\n    const ev = (data.events || []).find(e => /registration/i.test(e.eventAction))\n    return ev && !Number.isNaN(Date.parse(ev.eventDate)) ? new Date(ev.eventDate).toISOString() : null\n  } catch {\n    return null\n  }\n}\n\nasync function check(lead) {\n  const out = { ...lead, has_video: null, domain_created_at: null, signals: [], qualified: false, disqualify_reason: null }\n  const age = d => (d ? (Date.now() - Date.parse(d)) / DAY : null)\n\n  // ---- small: team size ----\n  if (lead.team_size && lead.team_size > MAX_TEAM) {\n    out.disqualify_reason = `team_too_big (${lead.team_size} > ${MAX_TEAM})`\n    return out\n  }\n\n  // ---- website ----\n  if (!lead.website) {\n    out.disqualify_reason = 'no_website'\n    return out\n  }\n  let site\n  try {\n    site = await resolveSite.call(this, lead.website)\n  } catch (e) {\n    out.disqualify_reason = `site_unreachable (${String(e.message || e).slice(0, 80)})`\n    return out\n  }\n  const host = hostOf(site.url)\n  if (!host || NON_SITE.test(host) || site.status >= 400 || !site.html) {\n    out.disqualify_reason = !host || NON_SITE.test(host) ? 'website_unresolved' : `site_unreachable (HTTP ${site.status})`\n    return out\n  }\n  out.website = site.url\n  out.company_domain = host\n  out.has_video = VIDEO_PATTERNS.some(re => re.test(site.html))\n  const s = socials(site.html)\n  out.x_handle = lead.x_handle || s.x_handle\n  out.linkedin_url = lead.linkedin_url || s.linkedin_url\n\n  // ---- new: launch date or young domain ----\n  out.domain_created_at = await domainCreated.call(this, registrable(host))\n  const launchAge = age(lead.launched_at)\n  const domainAge = age(out.domain_created_at)\n  const isNew = (launchAge != null && launchAge <= MAX_LAUNCH_DAYS) || (domainAge != null && domainAge <= MAX_DOMAIN_DAYS)\n  if (!isNew) {\n    out.disqualify_reason = `not_new (launched ${launchAge == null ? '?' : Math.round(launchAge)}d ago, domain ${domainAge == null ? '?' : Math.round(domainAge)}d old)`\n    return out\n  }\n\n  // ---- signals ----\n  if (launchAge != null && launchAge <= JUST_LAUNCHED_DAYS) out.signals.push('just_launched')\n  if (domainAge != null && domainAge <= 365) out.signals.push('new_domain')\n  if (out.has_video === false) out.signals.push('no_video')\n  if (lead.team_size && lead.team_size <= MAX_TEAM) out.signals.push('tiny_team')\n  if (out.x_handle) out.signals.push('has_x')\n  if (out.linkedin_url) out.signals.push('has_linkedin')\n\n  // ---- buying signal required: just launched, or no video to show their product ----\n  if (!out.signals.includes('just_launched') && !out.signals.includes('no_video')) {\n    out.disqualify_reason = 'no_buying_signal (already has a video and launched a while ago)'\n    return out\n  }\n  out.qualified = true\n  return out\n}\n\nconst leads = $input.all().map(i => i.json).filter(l => l && l.id)\nconst results = []\n// Small parallel batches: fast, but polite to the sites and RDAP servers we hit.\nfor (let i = 0; i < leads.length; i += 4) {\n  const batch = leads.slice(i, i + 4)\n  const checked = await Promise.all(\n    batch.map(l =>\n      check.call(this, l).catch(e => ({\n        ...l,\n        qualified: false,\n        signals: [],\n        disqualify_reason: `check_failed (${String(e.message || e).slice(0, 80)})`,\n      })),\n    ),\n  )\n  results.push(...checked)\n}\nreturn results.map(json => ({ json }))\n"
+        "jsCode": "// WF-2 \"Free checks & qualify\" (Code node, Run Once for All Items).\n// Runs only free lookups, so paid Hunter credits are spent on qualified leads only:\n//   1. resolve the real website (follows Product Hunt / BetaList redirects)\n//   2. homepage: is there a product video? X / LinkedIn links?\n//   3. domain age via RDAP (free, public registry data)\n//   4. small + new + buying-signal rules from the Config node\n//   5. for qualified leads only: a free email search (site pages + Hacker News profile), so Hunter\n//      credits are only spent when the founder's email is not published anywhere\n// Output: one item per raw lead with `qualified` true/false and `disqualify_reason`.\n\nconst cfg = $('Config').first().json\nconst MAX_TEAM = Number(cfg.max_team_size) || 3\nconst MAX_DOMAIN_DAYS = Number(cfg.max_domain_age_days) || 730\nconst MAX_LAUNCH_DAYS = Number(cfg.max_launch_age_days) || 90\nconst JUST_LAUNCHED_DAYS = Number(cfg.just_launched_days) || 30\nconst RDAP_BASE = String(cfg.rdap_base || 'https://rdap.org').replace(/\\/+$/, '')\nconst HN_API = String(cfg.hn_user_api || 'https://hacker-news.firebaseio.com/v0').replace(/\\/+$/, '')\nconst UA = 'Mozilla/5.0 (compatible; BearRadar/1.0; +https://bear.studio)'\nconst DAY = 86400000\n\nconst VIDEO_PATTERNS = [\n  /<video[\\s>]/i,\n  /youtube(?:-nocookie)?\\.com\\/(?:embed|watch)|youtu\\.be\\//i,\n  /player\\.vimeo\\.com|vimeo\\.com\\/\\d+/i,\n  /fast\\.wistia\\.(?:net|com)|wistia\\.com\\/medias/i,\n  /loom\\.com\\/(?:embed|share)/i,\n  /vidyard\\.com|videoask\\.com|mux\\.com\\/|stream\\.cloudflare|cloudflarestream\\.com/i,\n  /\\.(?:mp4|webm)(?:[\"'?#\\s])/i,\n]\nconst NON_SITE = /(?:^|\\.)(producthunt\\.com|betalist\\.com|github\\.com|gitlab\\.com|apps\\.apple\\.com|play\\.google\\.com|youtube\\.com|medium\\.com)$/i\n\n// n8n's Code-node sandbox has no global URL, so parse URLs with a regex.\nconst URL_RE = /^(https?):\\/\\/((?:[^@\\/?#]*@)?([^\\/?#:]+)(?::\\d+)?)([^?#]*)/i\nconst hostOf = url => {\n  const m = String(url || '').match(URL_RE)\n  return m ? m[3].toLowerCase().replace(/^www\\./, '') : null\n}\n// Resolve a redirect Location / href against the page it came from.\nconst resolveUrl = (ref, base) => {\n  ref = String(ref || '').trim()\n  if (/^https?:\\/\\//i.test(ref)) return ref\n  const m = String(base).match(URL_RE)\n  if (!m) return ref\n  const [, proto, authority, , path] = m\n  if (ref.startsWith('//')) return `${proto}:${ref}`\n  if (ref.startsWith('/')) return `${proto}://${authority}${ref}`\n  return `${proto}://${authority}${(path || '/').replace(/[^/]*$/, '')}${ref}`\n}\n// Registrable domain for RDAP (good enough for common TLDs, incl. co.uk-style two-part suffixes).\nconst registrable = host => {\n  const parts = host.split('.')\n  const twoPart = /^(co|com|org|net|ac|gov|edu)\\.[a-z]{2}$/.test(parts.slice(-2).join('.'))\n  return parts.slice(twoPart ? -3 : -2).join('.')\n}\n\nasync function get(url, extra = {}) {\n  return this.helpers.httpRequest({\n    url,\n    method: 'GET',\n    headers: { 'User-Agent': UA, Accept: 'text/html,application/json;q=0.9,*/*;q=0.8' },\n    timeout: 12000,\n    returnFullResponse: true,\n    ignoreHttpStatusErrors: true,\n    encoding: 'text',\n    json: false,\n    ...extra,\n  })\n}\n\n// Follow redirects ourselves so we know the final URL (Product Hunt /r/ links, BetaList visit links).\nasync function resolveSite(startUrl) {\n  let url = startUrl\n  for (let hop = 0; hop < 6; hop++) {\n    const res = await get.call(this, url, { disableFollowRedirect: true })\n    const status = res.statusCode\n    const location = res.headers && (res.headers.location || res.headers.Location)\n    if (status >= 300 && status < 400 && location) {\n      url = resolveUrl(location, url)\n      continue\n    }\n    const html = typeof res.body === 'string' ? res.body : String(res.body ?? '')\n    // BetaList / Product Hunt pages: jump to the startup's outbound link if present.\n    const host = hostOf(url)\n    if (host && NON_SITE.test(host) && /betalist\\.com|producthunt\\.com/.test(host)) {\n      const out =\n        html.match(/href=\"(\\/startups\\/[^\"]+\\/visit)\"/i)?.[1] ||\n        html.match(/href=\"(https?:\\/\\/[^\"]+)\"[^>]*(?:rel=\"[^\"]*nofollow[^\"]*\")[^>]*>\\s*(?:visit|website)/i)?.[1]\n      if (out) {\n        url = resolveUrl(out, url)\n        continue\n      }\n    }\n    return { url, status, html: html.slice(0, 600000) }\n  }\n  return { url, status: 0, html: '' }\n}\n\nfunction socials(html) {\n  const handles = [...html.matchAll(/https?:\\/\\/(?:www\\.)?(?:twitter|x)\\.com\\/(@?\\w{1,15})(?=[\"'\\/?#\\s])/gi)]\n    .map(m => m[1].replace(/^@/, ''))\n    .filter(h => !/^(share|intent|home|search|hashtag|i|privacy|tos|login|signup)$/i.test(h))\n  const linkedin = html.match(/https?:\\/\\/(?:[a-z]{2,3}\\.)?linkedin\\.com\\/(?:company|in)\\/[\\w\\-%.]+/i)?.[0] || null\n  return { x_handle: handles[0] || null, linkedin_url: linkedin }\n}\n\n// ---------- free email search ----------\nconst FREE_MAIL = /^(gmail|googlemail|outlook|hotmail|live|icloud|me|proton|protonmail|pm|hey|fastmail|yahoo|zoho)\\.[a-z.]+$/i\nconst JUNK_LOCAL = /^(no-?reply|do-?not-?reply|donotreply|privacy|legal|abuse|postmaster|security|dmca|gdpr|dpo|unsubscribe|bounce[s]?|mailer-daemon|example|user|username|email|name|your|yourname|you|test|someone|john|jane|john\\.doe|jane\\.doe|wordpress|admin|webmaster|careers|jobs|press|billing|invoices?)$/i\nconst JUNK_DOMAIN = /(example\\.(com|org)|domain\\.com|email\\.com|sentry\\.io|wixpress\\.com|sentry-next\\.wixpress\\.com|yourcompany|company\\.com|mysite\\.com|godaddy\\.com|squarespace\\.com|w3\\.org|schema\\.org)$/i\nconst EMAIL_RE = /[a-z0-9][a-z0-9._%+-]{0,63}@[a-z0-9.-]+\\.[a-z]{2,24}/gi\n\nconst decodeEntities = t => String(t || '')\n  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))\n  .replace(/&#(\\d+);/g, (_, d) => String.fromCharCode(Number(d)))\n  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\")\n// Cloudflare hides emails as <a data-cfemail=\"hex\">; the first byte is the XOR key.\nconst cfDecode = hex => {\n  try {\n    const key = parseInt(hex.slice(0, 2), 16)\n    let out = ''\n    for (let i = 2; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ key)\n    return out\n  } catch { return '' }\n}\n// \"sam [at] acme [dot] com\" / \"sam (at) acme.com\" style text.\nconst deobfuscate = t => t\n  .replace(/\\s*[\\[(<{]\\s*at\\s*[\\])>}]\\s*/gi, '@')\n  .replace(/\\s*[\\[(<{]\\s*dot\\s*[\\])>}]\\s*/gi, '.')\n  .replace(/\\s+at\\s+(?=[a-z0-9-]+\\s*(?:\\.|\\s+dot\\s+)[a-z]{2,})/gi, '@')\n  .replace(/\\s+dot\\s+(?=[a-z]{2,}\\b)/gi, '.')\n\nfunction emailsIn(html) {\n  const text = decodeEntities(html)\n  const found = [...text.matchAll(EMAIL_RE)].map(m => m[0])\n  for (const m of html.matchAll(/data-cfemail=\"([0-9a-f]+)\"/gi)) found.push(cfDecode(m[1]))\n  for (const m of text.matchAll(/mailto:([^\"'?\\s>]+)/gi)) found.push(decodeURIComponent(m[1]))\n  return found\n}\n\nfunction rankEmails(list, companyHost, personName) {\n  const base = registrable(companyHost || '')\n  const first = String(personName || '').trim().split(/\\s+/)[0]?.toLowerCase() || ''\n  const seen = new Set()\n  return list\n    .map(e => String(e || '').trim().toLowerCase().replace(/^mailto:/, '').replace(/[.,;:)\\]]+$/, ''))\n    .filter(e => {\n      const [local, domain] = e.split('@')\n      if (!local || !domain || seen.has(e)) return false\n      seen.add(e)\n      if (/\\.(png|jpe?g|gif|svg|webp|avif|ico|css|js)$/i.test(e) || /\\d+x\\d*$/.test(local)) return false\n      if (JUNK_LOCAL.test(local) || JUNK_DOMAIN.test(domain)) return false\n      return registrable(domain) === base || FREE_MAIL.test(domain)\n    })\n    .map(e => {\n      const local = e.split('@')[0]\n      let score = 0\n      if (first && first.length > 1 && local.includes(first)) score += 60\n      if (/^(founder|founders|ceo|cofounder|co-founder)$/.test(local)) score += 50\n      else if (/^(hi|hello|hey|yo)$/.test(local)) score += 35\n      else if (/^(contact|team|info|mail|inbox|general)$/.test(local)) score += 25\n      else if (/^(support|help|sales|feedback|partners?|marketing)$/.test(local)) score += 10\n      else score += 40 // looks like a person's own address\n      if (FREE_MAIL.test(e.split('@')[1])) score -= 5\n      return { email: e, score }\n    })\n    .sort((a, b) => b.score - a.score)\n}\n\nasync function hnAbout(user) {\n  try {\n    const res = await get.call(this, `${HN_API}/user/${encodeURIComponent(user)}.json`, { headers: { 'User-Agent': UA, Accept: 'application/json' } })\n    if (res.statusCode !== 200) return ''\n    const data = typeof res.body === 'string' ? JSON.parse(res.body) : res.body\n    return deobfuscate(decodeEntities(String((data && data.about) || '').replace(/<[^>]+>/g, ' ')))\n  } catch { return '' }\n}\n\n// Homepage first, then a few likely pages on the same site; stops at the first good address.\nasync function findEmail(site, lead, host) {\n  const person = lead.name\n  let ranked = rankEmails(emailsIn(site.html), host, person)\n  if (lead.source === 'hackernews' && lead.name && !(ranked[0] && ranked[0].score >= 60)) {\n    const about = await hnAbout.call(this, lead.name)\n    const fromHn = rankEmails(emailsIn(about), host, person).map(e => ({ ...e, score: e.score + 15 }))\n    ranked = [...fromHn, ...ranked].sort((a, b) => b.score - a.score)\n  }\n  if (ranked[0] && ranked[0].score >= 40) return { email: ranked[0].email, from: 'website' }\n  const linked = [...site.html.matchAll(/href=\"([^\"#?]*(?:contact|about|team|founder|imprint|impressum)[^\"#?]*)\"/gi)]\n    .map(m => resolveUrl(m[1], site.url))\n    .filter(u => hostOf(u) === host)\n  const guesses = ['/contact', '/about', '/team'].map(p => resolveUrl(p, site.url))\n  for (const url of [...new Set([...linked, ...guesses])].slice(0, 4)) {\n    try {\n      const res = await get.call(this, url)\n      if (res.statusCode >= 400) continue\n      const more = rankEmails(emailsIn(String(res.body ?? '').slice(0, 400000)), host, person)\n      ranked = [...ranked, ...more].sort((a, b) => b.score - a.score)\n      if (ranked[0] && ranked[0].score >= 40) break\n    } catch { /* page missing: try the next one */ }\n  }\n  return ranked[0] ? { email: ranked[0].email, from: 'website' } : null\n}\n\nasync function domainCreated(domain) {\n  try {\n    const res = await get.call(this, `${RDAP_BASE}/domain/${domain}`, {\n      headers: { 'User-Agent': UA, Accept: 'application/rdap+json, application/json' },\n    })\n    if (res.statusCode !== 200) return null\n    const data = typeof res.body === 'string' ? JSON.parse(res.body) : res.body\n    const ev = (data.events || []).find(e => /registration/i.test(e.eventAction))\n    return ev && !Number.isNaN(Date.parse(ev.eventDate)) ? new Date(ev.eventDate).toISOString() : null\n  } catch {\n    return null\n  }\n}\n\nasync function check(lead) {\n  const out = { ...lead, has_video: null, domain_created_at: null, signals: [], qualified: false, disqualify_reason: null }\n  const age = d => (d ? (Date.now() - Date.parse(d)) / DAY : null)\n\n  // ---- small: team size ----\n  if (lead.team_size && lead.team_size > MAX_TEAM) {\n    out.disqualify_reason = `team_too_big (${lead.team_size} > ${MAX_TEAM})`\n    return out\n  }\n\n  // ---- website ----\n  if (!lead.website) {\n    out.disqualify_reason = 'no_website'\n    return out\n  }\n  let site\n  try {\n    site = await resolveSite.call(this, lead.website)\n  } catch (e) {\n    out.disqualify_reason = `site_unreachable (${String(e.message || e).slice(0, 80)})`\n    return out\n  }\n  const host = hostOf(site.url)\n  if (!host || NON_SITE.test(host) || site.status >= 400 || !site.html) {\n    out.disqualify_reason = !host || NON_SITE.test(host) ? 'website_unresolved' : `site_unreachable (HTTP ${site.status})`\n    return out\n  }\n  out.website = site.url\n  out.company_domain = host\n  out.has_video = VIDEO_PATTERNS.some(re => re.test(site.html))\n  const s = socials(site.html)\n  out.x_handle = lead.x_handle || s.x_handle\n  out.linkedin_url = lead.linkedin_url || s.linkedin_url\n\n  // ---- new: launch date or young domain ----\n  out.domain_created_at = await domainCreated.call(this, registrable(host))\n  const launchAge = age(lead.launched_at)\n  const domainAge = age(out.domain_created_at)\n  const isNew = (launchAge != null && launchAge <= MAX_LAUNCH_DAYS) || (domainAge != null && domainAge <= MAX_DOMAIN_DAYS)\n  if (!isNew) {\n    out.disqualify_reason = `not_new (launched ${launchAge == null ? '?' : Math.round(launchAge)}d ago, domain ${domainAge == null ? '?' : Math.round(domainAge)}d old)`\n    return out\n  }\n\n  // ---- signals ----\n  if (launchAge != null && launchAge <= JUST_LAUNCHED_DAYS) out.signals.push('just_launched')\n  if (domainAge != null && domainAge <= 365) out.signals.push('new_domain')\n  if (out.has_video === false) out.signals.push('no_video')\n  if (lead.team_size && lead.team_size <= MAX_TEAM) out.signals.push('tiny_team')\n  if (out.x_handle) out.signals.push('has_x')\n  if (out.linkedin_url) out.signals.push('has_linkedin')\n\n  // ---- buying signal required: just launched, or no video to show their product ----\n  if (!out.signals.includes('just_launched') && !out.signals.includes('no_video')) {\n    out.disqualify_reason = 'no_buying_signal (already has a video and launched a while ago)'\n    return out\n  }\n  out.qualified = true\n  try {\n    const found = await findEmail.call(this, site, lead, host)\n    out.site_email = found ? found.email : null\n  } catch {\n    out.site_email = null\n  }\n  return out\n}\n\nconst leads = $input.all().map(i => i.json).filter(l => l && l.id)\nconst results = []\n// Small parallel batches: fast, but polite to the sites and RDAP servers we hit.\nfor (let i = 0; i < leads.length; i += 4) {\n  const batch = leads.slice(i, i + 4)\n  const checked = await Promise.all(\n    batch.map(l =>\n      check.call(this, l).catch(e => ({\n        ...l,\n        qualified: false,\n        signals: [],\n        disqualify_reason: `check_failed (${String(e.message || e).slice(0, 80)})`,\n      })),\n    ),\n  )\n  results.push(...checked)\n}\nreturn results.map(json => ({ json }))\n"
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000041",
+      "id": "b3a5e7c1-0000-4000-8000-000000000042",
       "name": "Run summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -196,7 +202,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000042",
+      "id": "b3a5e7c1-0000-4000-8000-000000000043",
       "name": "Write run log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -239,7 +245,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000044",
+      "id": "b3a5e7c1-0000-4000-8000-000000000045",
       "name": "Qualified?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -256,7 +262,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000043",
+              "id": "1f0c0d00-0000-4000-8000-000000000044",
               "leftValue": "={{ $json.qualified }}",
               "rightValue": "",
               "operator": {
@@ -272,7 +278,40 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000045",
+      "id": "b3a5e7c1-0000-4000-8000-000000000047",
+      "name": "Need Hunter?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1010,
+        -60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000046",
+              "leftValue": "={{ !$json.site_email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000048",
       "name": "Hunter: founder email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -316,7 +355,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000046",
+      "id": "b3a5e7c1-0000-4000-8000-000000000049",
       "name": "Pick founder email",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -326,11 +365,11 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// WF-2 \"Pick founder email\" (Code node, Run Once for Each Item).\n// Input: Hunter domain-search response for one qualified lead.\n// Prefers founders / CEOs; otherwise the most confident personal address.\n\nconst lead = $('Qualified?').item.json\nconst res = $json || {}\nconst emails = (res.data && res.data.emails) || []\n\nconst score = e => {\n  const pos = `${e.position || ''} ${e.seniority || ''}`.toLowerCase()\n  let s = Number(e.confidence) || 0\n  if (/founder|co-?founder|ceo|owner|chief executive/.test(pos)) s += 200\n  else if (/executive|cto|coo|cmo|head|director|vp/.test(pos)) s += 100\n  if (e.type === 'generic') s -= 150\n  return s\n}\nconst best = emails\n  .filter(e => e && e.value && (e.verification?.status ?? 'valid') !== 'invalid')\n  .sort((a, b) => score(b) - score(a))[0]\n\nconst fullName = best ? [best.first_name, best.last_name].filter(Boolean).join(' ') : ''\nreturn {\n  json: {\n    ...lead,\n    email: best ? best.value : null,\n    name: fullName || lead.name || null,\n    founder_role: best?.position || null,\n    hunter_error: res.error ? String(res.error.message || res.error).slice(0, 200) : null,\n  },\n}\n"
+        "jsCode": "// WF-2 \"Pick founder email\" (Code node, Run Once for Each Item).\n// Input: Hunter domain-search response for one qualified lead, or the lead itself when the free\n// website search already found an address (Hunter is skipped then).\n// Prefers Hunter founders / CEOs, then the address published on their site / HN profile.\n\nconst lead = $('Qualified?').item.json\nconst res = $json && ($json.data || $json.error) ? $json : {}\nconst emails = (res.data && res.data.emails) || []\n\nconst score = e => {\n  const pos = `${e.position || ''} ${e.seniority || ''}`.toLowerCase()\n  let s = Number(e.confidence) || 0\n  if (/founder|co-?founder|ceo|owner|chief executive/.test(pos)) s += 200\n  else if (/executive|cto|coo|cmo|head|director|vp/.test(pos)) s += 100\n  if (e.type === 'generic') s -= 150\n  return s\n}\nconst best = emails\n  .filter(e => e && e.value && (e.verification?.status ?? 'valid') !== 'invalid')\n  .sort((a, b) => score(b) - score(a))[0]\n\nconst hunterIsFounder = best && /founder|ceo|owner|chief executive/i.test(`${best.position || ''}`)\nconst useHunter = best && (hunterIsFounder || !lead.site_email)\nconst fullName = useHunter ? [best.first_name, best.last_name].filter(Boolean).join(' ') : ''\nreturn {\n  json: {\n    ...lead,\n    email: useHunter ? best.value : lead.site_email || null,\n    name: fullName || lead.name || null,\n    founder_role: useHunter ? best.position || null : null,\n    hunter_error: res.error ? String(res.error.message || res.error).slice(0, 200) : null,\n  },\n}\n"
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000047",
+      "id": "b3a5e7c1-0000-4000-8000-000000000050",
       "name": "Groq: score lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -371,7 +410,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000048",
+      "id": "b3a5e7c1-0000-4000-8000-000000000051",
       "name": "Build lead row",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -385,7 +424,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000049",
+      "id": "b3a5e7c1-0000-4000-8000-000000000052",
       "name": "Save lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -429,7 +468,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000050",
+      "id": "b3a5e7c1-0000-4000-8000-000000000053",
       "name": "Mark processed",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -472,7 +511,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000051",
+      "id": "b3a5e7c1-0000-4000-8000-000000000054",
       "name": "Save disqualified",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -591,7 +630,7 @@
       "main": [
         [
           {
-            "node": "Hunter: founder email",
+            "node": "Need Hunter?",
             "type": "main",
             "index": 0
           }
@@ -599,6 +638,24 @@
         [
           {
             "node": "Save disqualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need Hunter?": {
+      "main": [
+        [
+          {
+            "node": "Hunter: founder email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pick founder email",
             "type": "main",
             "index": 0
           }

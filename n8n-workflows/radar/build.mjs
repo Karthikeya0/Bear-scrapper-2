@@ -203,6 +203,7 @@ function buildWf2() {
       just_launched_days: 30,
       min_score: 60,
       rdap_base: 'https://rdap.org',
+      hn_user_api: 'https://hacker-news.firebaseio.com/v0',
       hunter_url: 'https://api.hunter.io/v2/domain-search',
       groq_url: 'https://api.groq.com/openai/v1/chat/completions',
       groq_model: 'llama-3.3-70b-versatile',
@@ -223,6 +224,8 @@ function buildWf2() {
       body: '={{ JSON.stringify($json) }}',
     }),
     ifTrue('Qualified?', [900, 100], '={{ $json.qualified }}'),
+    // Hunter costs credits, so it only runs when the free website / HN search found no address.
+    ifTrue('Need Hunter?', [1010, -60], '={{ !$json.site_email }}'),
     http('Hunter: founder email', [1120, 0], {
       url: "={{ $('Config').first().json.hunter_url }}",
       auth: { header: CRED.hunter },
@@ -275,7 +278,9 @@ function buildWf2() {
   link(c, 'Free checks & qualify', 'Qualified?')
   link(c, 'Free checks & qualify', 'Run summary')
   link(c, 'Run summary', 'Write run log')
-  link(c, 'Qualified?', 'Hunter: founder email', 0)
+  link(c, 'Qualified?', 'Need Hunter?', 0)
+  link(c, 'Need Hunter?', 'Hunter: founder email', 0)
+  link(c, 'Need Hunter?', 'Pick founder email', 1)
   link(c, 'Qualified?', 'Save disqualified', 1)
   link(c, 'Hunter: founder email', 'Pick founder email')
   // Every qualified lead is scored and saved, even when Hunter finds no email (or its quota is used up):

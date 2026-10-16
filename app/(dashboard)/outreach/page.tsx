@@ -16,6 +16,17 @@ type QueueItem = {
   lead: { name: string | null; company: string | null; email: string | null; ai_score: number | null } | null
 }
 
+type DraftRun =
+  | { phase: 'idle' }
+  | { phase: 'running'; startedAt: number; pendingBefore: number }
+  | { phase: 'done'; tone: 'success' | 'warn' | 'error'; title: string; text: string }
+
+type RunLog = { status: string; leads_scored: number | null; leads_skipped: number | null; errors: { message?: string }[] | null }
+
+const MIN_SCORE = 60
+const POLL_MS = 3000
+const RUN_TIMEOUT_MS = 4 * 60 * 1000
+
 const TABS: { key: Tab; label: string }[] = [
   { key: 'pending_review', label: 'Needs review' },
   { key: 'approved', label: 'Sending' },
@@ -39,6 +50,8 @@ function OutreachInner() {
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState<'' | 'approve' | 'reject' | 'save' | 'requeue'>('')
   const [generating, setGenerating] = useState(false)
+  const [run, setRun] = useState<DraftRun>({ phase: 'idle' })
+  const [readiness, setReadiness] = useState<{ ready: number; needEmail: number } | null>(null)
 
   const selected = items.find(i => i.id === selectedId) ?? null
   const dirty = !!selected && (subject !== selected.subject || body !== selected.body)
@@ -62,6 +75,65 @@ function OutreachInner() {
     setCounts(Object.fromEntries(TABS.map((t, i) => [t.key, countResults[i].count ?? 0])) as Record<Tab, number>)
     setLoading(false)
   }, [supabase, tab])
+
+  // How many leads WF-3 can draft right now, and how many are blocked on a missing email.
+  const loadReadiness = useCallback(async () => {
+    const [ready, needEmail] = await Promise.all([
+      supabase
+        .from('leads')
+        .select('id, outreach_queue(id)', { count: 'exact', head: true })
+        .eq('status', 'scored')
+        .eq('outreach_eligible', true)
+        .not('email', 'is', null)
+        .gte('ai_score', MIN_SCORE)
+        .is('outreach_queue', null),
+      supabase
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'scored')
+        .is('email', null)
+        .gte('ai_score', MIN_SCORE),
+    ])
+    if (!ready.error && !needEmail.error) setReadiness({ ready: ready.count ?? 0, needEmail: needEmail.count ?? 0 })
+  }, [supabase])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load
+    loadReadiness()
+  }, [loadReadiness])
+
+  // While WF-3 runs, poll for its run log so the page can say when it finished and what it did.
+  useEffect(() => {
+    if (run.phase !== 'running') return
+    const timer = setInterval(async () => {
+      const since = new Date(run.startedAt - 5000).toISOString()
+      const { data } = await supabase
+        .from('workflow_logs')
+        .select('status, leads_scored, leads_skipped, errors')
+        .eq('workflow_name', 'WF-3-Outreach')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      const log = (data?.[0] ?? null) as RunLog | null
+      if (log) {
+        const drafted = log.leads_scored ?? 0
+        const firstError = Array.isArray(log.errors) ? log.errors.find(e => e?.message)?.message : undefined
+        if (drafted > 0) {
+          setRun({ phase: 'done', tone: 'success', title: `${drafted} new ${drafted === 1 ? 'draft' : 'drafts'} ready for review`, text: firstError ? `Some leads could not be drafted: ${firstError}` : 'Open each one below, edit if you like, then Approve & send.' })
+        } else if (firstError) {
+          setRun({ phase: 'done', tone: 'error', title: 'No drafts were written', text: firstError })
+        } else {
+          setRun({ phase: 'done', tone: 'warn', title: 'Nothing to draft right now', text: 'Every lead with an email and a score of 60+ already has a draft. Leads without an email are listed below.' })
+        }
+        setTab('pending_review')
+        load()
+        loadReadiness()
+      } else if (Date.now() - run.startedAt > RUN_TIMEOUT_MS) {
+        setRun({ phase: 'done', tone: 'error', title: 'WF-3 has not reported back', text: 'It may still be running or it stopped with an error. Open n8n → WF-3: Draft Outreach → Executions to see why.' })
+      }
+    }, POLL_MS)
+    return () => clearInterval(timer)
+  }, [run, supabase, load, loadReadiness])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data load on tab change
@@ -137,11 +209,14 @@ function OutreachInner() {
 
   async function generate() {
     setGenerating(true)
+    const startedAt = Date.now()
     const res = await triggerWorkflow('WF-3-Outreach')
     setGenerating(false)
-    if (res.ok) toast.success('Outreach generator started. New drafts will appear here automatically.')
-    else toast.error(res.error ?? 'Could not start the outreach generator.')
+    if (res.ok) setRun({ phase: 'running', startedAt, pendingBefore: counts.pending_review })
+    else setRun({ phase: 'done', tone: 'error', title: 'Could not start WF-3', text: res.error ?? 'The outreach workflow did not start.' })
   }
+
+  const drafting = run.phase === 'running'
 
   const editable = selected?.status === 'pending_review'
 
@@ -155,9 +230,9 @@ function OutreachInner() {
             <button className="btn" onClick={load} disabled={loading}>
               <IconRefresh className="icon" /> Refresh
             </button>
-            <button className="btn btn-primary" onClick={generate} disabled={generating}>
-              {generating ? <Spinner /> : <IconBolt className="icon" />}
-              {generating ? 'Starting…' : 'Draft new emails'}
+            <button className="btn btn-primary" onClick={generate} disabled={generating || drafting}>
+              {generating || drafting ? <Spinner /> : <IconBolt className="icon" />}
+              {generating ? 'Starting…' : drafting ? 'Drafting…' : 'Draft new emails'}
             </button>
           </>
         }
@@ -177,6 +252,34 @@ function OutreachInner() {
           </button>
         ))}
       </div>
+
+      {run.phase === 'running' && (
+        <Alert tone="info" title="n8n is writing personalised emails…">
+          Groq drafts one email per lead (about 3 seconds each). {Math.max(0, counts.pending_review - run.pendingBefore)} new so far — they appear in
+          “Needs review” as soon as the run finishes.
+        </Alert>
+      )}
+      {run.phase === 'done' && (
+        <Alert
+          tone={run.tone}
+          title={run.title}
+          action={<button className="icon-btn" onClick={() => setRun({ phase: 'idle' })} aria-label="Dismiss"><IconX /></button>}
+        >
+          {run.text}
+        </Alert>
+      )}
+      {readiness && (
+        <div className="card card-pad row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <div className="row" style={{ gap: 20, flexWrap: 'wrap' }}>
+            <span><strong>{readiness.ready}</strong> <span className="muted">{readiness.ready === 1 ? 'lead is' : 'leads are'} ready to draft</span></span>
+            <span>
+              <strong>{readiness.needEmail}</strong> <span className="muted">good {readiness.needEmail === 1 ? 'lead needs' : 'leads need'} an email address</span>
+              {readiness.needEmail > 0 && <> · <Link className="link" href="/leads?needs=email">add emails</Link></>}
+            </span>
+          </div>
+          <span className="hint">Drafts are only written for leads with an email and a score of {MIN_SCORE}+.</span>
+        </div>
+      )}
 
       {error && <Alert title="Could not load the queue">{error}</Alert>}
       {tab === 'approved' && items.length > 0 && (

@@ -1,9 +1,10 @@
 // WF-2 "Pick founder email" (Code node, Run Once for Each Item).
-// Input: Hunter domain-search response for one qualified lead.
-// Prefers founders / CEOs; otherwise the most confident personal address.
+// Input: Hunter domain-search response for one qualified lead, or the lead itself when the free
+// website search already found an address (Hunter is skipped then).
+// Prefers Hunter founders / CEOs, then the address published on their site / HN profile.
 
 const lead = $('Qualified?').item.json
-const res = $json || {}
+const res = $json && ($json.data || $json.error) ? $json : {}
 const emails = (res.data && res.data.emails) || []
 
 const score = e => {
@@ -18,13 +19,15 @@ const best = emails
   .filter(e => e && e.value && (e.verification?.status ?? 'valid') !== 'invalid')
   .sort((a, b) => score(b) - score(a))[0]
 
-const fullName = best ? [best.first_name, best.last_name].filter(Boolean).join(' ') : ''
+const hunterIsFounder = best && /founder|ceo|owner|chief executive/i.test(`${best.position || ''}`)
+const useHunter = best && (hunterIsFounder || !lead.site_email)
+const fullName = useHunter ? [best.first_name, best.last_name].filter(Boolean).join(' ') : ''
 return {
   json: {
     ...lead,
-    email: best ? best.value : null,
+    email: useHunter ? best.value : lead.site_email || null,
     name: fullName || lead.name || null,
-    founder_role: best?.position || null,
+    founder_role: useHunter ? best.position || null : null,
     hunter_error: res.error ? String(res.error.message || res.error).slice(0, 200) : null,
   },
 }

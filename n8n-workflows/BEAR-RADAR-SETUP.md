@@ -41,7 +41,7 @@ For each file in this folder — `WF1-lead-radar-sources.json`, then `WF2-qualif
    - WF-1: *Dashboard: Scrape leads*, *Product Hunt: launches*, *Save new raw leads*, *Write run log*
    - WF-2: *Dashboard: Score & enrich*, *Fetch raw leads*, *Hunter: founder email*, *Groq: score lead*, *Save lead*, *Mark processed*, *Save disqualified*, *Write run log*
 
-> **Hunter free plan = about 25 searches a month.** When it runs out, leads are still saved, just without an email.
+> **Emails are found for free first:** WF-2 reads the startup's homepage, /contact, /about and /team pages (including Cloudflare-hidden addresses) and the founder's Hacker News profile. Hunter (≈25 free searches a month) is only used when none of those has an address. Leads are saved either way; you can also paste an email on the lead's page.
 4. **Save**, then **Publish / Activate**.
 
 ✅ Check: dashboard → **Settings → Integrations → Re-check** → `wf1-scraper` and `wf2-processor` show **Ready**.

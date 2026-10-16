@@ -40,10 +40,20 @@ export default function LeadsPage() {
   const [status, setStatus] = useState('all')
   const [source, setSource] = useState('all')
   const [minScore, setMinScore] = useState(0)
+  const [emailFilter, setEmailFilter] = useState<'all' | 'has' | 'missing'>('all')
   const [limit, setLimit] = useState(PAGE_SIZE)
   const [funnel, setFunnel] = useState<Record<string, number>>({})
   const [funnelTotal, setFunnelTotal] = useState(0)
   const [triggering, setTriggering] = useState(false)
+
+  // /leads?needs=email (linked from the Outreach page) opens the list of good leads that still need an email.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('needs') === 'email') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the URL on mount
+      setEmailFilter('missing')
+      setMinScore(60)
+    }
+  }, [])
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -63,6 +73,8 @@ export default function LeadsPage() {
     if (status !== 'all') query = query.eq('status', status)
     if (source !== 'all') query = query.eq('source', source)
     if (minScore > 0) query = query.gte('ai_score', minScore)
+    if (emailFilter === 'has') query = query.not('email', 'is', null)
+    if (emailFilter === 'missing') query = query.is('email', null)
     if (debounced) query = query.or(`name.ilike.*${debounced}*,company.ilike.*${debounced}*,email.ilike.*${debounced}*`)
 
     const { data, count, error } = await query
@@ -73,7 +85,7 @@ export default function LeadsPage() {
       setTotal(count ?? 0)
     }
     setLoading(false)
-  }, [supabase, status, source, minScore, debounced, limit])
+  }, [supabase, status, source, minScore, emailFilter, debounced, limit])
 
   const fetchFunnel = useCallback(async () => {
     const results = await Promise.all([
@@ -112,7 +124,7 @@ export default function LeadsPage() {
     else toast.error(res.error ?? 'Could not start the scraper.')
   }
 
-  const filtersActive = status !== 'all' || source !== 'all' || minScore > 0 || !!debounced
+  const filtersActive = status !== 'all' || source !== 'all' || minScore > 0 || emailFilter !== 'all' || !!debounced
 
   return (
     <>
@@ -182,8 +194,13 @@ export default function LeadsPage() {
           <option value={60}>Score ≥ 60</option>
           <option value={80}>Score ≥ 80</option>
         </select>
+        <select className="select" value={emailFilter} onChange={e => { setEmailFilter(e.target.value as 'all' | 'has' | 'missing'); setLimit(PAGE_SIZE) }} aria-label="Email">
+          <option value="all">Any email</option>
+          <option value="has">Has email</option>
+          <option value="missing">Missing email</option>
+        </select>
         {filtersActive && (
-          <button className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setStatus('all'); setSource('all'); setMinScore(0) }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setStatus('all'); setSource('all'); setMinScore(0); setEmailFilter('all') }}>
             Clear filters
           </button>
         )}

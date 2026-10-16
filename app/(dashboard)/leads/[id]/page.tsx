@@ -14,9 +14,13 @@ type Lead = {
   ai_score: number | null; ai_reasoning: string | null; ai_signals: unknown; status: string; notes: string | null
   outreach_eligible: boolean | null; created_at: string; first_contacted_at: string | null
   replied_at: string | null; converted_at: string | null
+  website: string | null; x_handle: string | null; linkedin_url: string | null; founder_role: string | null; signals: unknown
 }
 type History = { id: string; subject: string | null; body_sent: string | null; body: string | null; sequence_step: number | null; sent_at: string | null }
 type Sequence = { id: string; sequence_step: number | null; step: number | null; template_key: string | null; send_at: string; sent: boolean | null; cancelled: boolean | null }
+
+const MIN_SCORE = 60
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 const STATUS_FLOW = ['scored', 'contacted', 'replied', 'converted', 'dead', 'bounced', 'unsubscribed', 'disqualified']
 
@@ -56,6 +60,8 @@ export default function LeadDetailPage() {
   const [savingStatus, setSavingStatus] = useState('')
   const [notes, setNotes] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
+  const [emailDraft, setEmailDraft] = useState('')
+  const [savingEmail, setSavingEmail] = useState(false)
 
   const load = useCallback(async () => {
     const [l, h, s] = await Promise.all([
@@ -67,6 +73,7 @@ export default function LeadDetailPage() {
     if (l.data) {
       setLead(l.data as Lead)
       setNotes((l.data as Lead).notes ?? '')
+      setEmailDraft((l.data as Lead).email ?? '')
     }
     setHistory((h.data ?? []) as History[])
     setSequences((s.data ?? []) as Sequence[])
@@ -96,6 +103,18 @@ export default function LeadDetailPage() {
     if (next === 'converted' && !lead.converted_at) fields.converted_at = new Date().toISOString()
     await update(fields, `Status changed to ${humanize(next)}.`)
     setSavingStatus('')
+  }
+
+  // Adding an email makes a good lead draftable: WF-3 picks it up on its next run.
+  async function saveEmail() {
+    if (!lead) return
+    const email = emailDraft.trim().toLowerCase()
+    if (email && !EMAIL_RE.test(email)) return toast.error('That does not look like an email address.')
+    setSavingEmail(true)
+    const fields: Partial<Lead> = { email: email || null }
+    if (email && (lead.ai_score ?? 0) >= MIN_SCORE) fields.outreach_eligible = true
+    await update(fields, email ? 'Email saved. This lead will be drafted on the next “Draft new emails” run.' : 'Email removed.')
+    setSavingEmail(false)
   }
 
   async function saveNotes() {
@@ -131,8 +150,12 @@ export default function LeadDetailPage() {
     )
   }
 
-  const signals = toSignals(lead.ai_signals)
+  const signals = [...new Set([...toSignals(lead.signals), ...toSignals(lead.ai_signals)])]
   const profileUrl = safeUrl(lead.profile_url)
+  const websiteUrl = safeUrl(lead.website) ?? (lead.company_domain ? `https://${lead.company_domain}` : null)
+  const xUrl = lead.x_handle ? `https://x.com/${encodeURIComponent(lead.x_handle)}` : null
+  const linkedinUrl = safeUrl(lead.linkedin_url)
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(`${lead.name ?? ''} ${lead.company ?? ''} founder email`.trim())}`
   const pendingSequences = sequences.filter(s => !s.sent && !s.cancelled)
 
   return (
@@ -156,9 +179,40 @@ export default function LeadDetailPage() {
             <dl className="dl">
               <div><dt>Name</dt><dd>{lead.name || '—'}</dd></div>
               <div><dt>Company</dt><dd>{lead.company || '—'}</dd></div>
-              <div>
+              {lead.founder_role && <div><dt>Role</dt><dd>{lead.founder_role}</dd></div>}
+              <div style={{ gridColumn: '1 / -1' }}>
                 <dt>Email</dt>
-                <dd>{lead.email ? <a className="link" href={`mailto:${lead.email}`}>{lead.email}</a> : <span className="subtle">Not found yet</span>}</dd>
+                <dd>
+                  <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    <input
+                      className="input"
+                      type="email"
+                      value={emailDraft}
+                      onChange={e => setEmailDraft(e.target.value)}
+                      placeholder="founder@company.com"
+                      aria-label="Email address"
+                      style={{ flex: '1 1 220px', maxWidth: 360 }}
+                    />
+                    <button className="btn btn-sm btn-primary" onClick={saveEmail} disabled={savingEmail || emailDraft.trim().toLowerCase() === (lead.email ?? '')}>
+                      {savingEmail && <Spinner />} Save email
+                    </button>
+                  </div>
+                  {!lead.email && (
+                    <div className="hint" style={{ marginTop: 6 }}>
+                      Not found automatically. Check their site, X or LinkedIn, or{' '}
+                      <a className="link" href={searchUrl} target="_blank" rel="noopener noreferrer">search Google</a>, then paste it here.
+                    </div>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Links</dt>
+                <dd className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
+                  {websiteUrl && <a className="link row" style={{ display: 'inline-flex' }} href={websiteUrl} target="_blank" rel="noopener noreferrer">Website <IconExternal width={13} height={13} /></a>}
+                  {xUrl && <a className="link row" style={{ display: 'inline-flex' }} href={xUrl} target="_blank" rel="noopener noreferrer">@{lead.x_handle} <IconExternal width={13} height={13} /></a>}
+                  {linkedinUrl && <a className="link row" style={{ display: 'inline-flex' }} href={linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn <IconExternal width={13} height={13} /></a>}
+                  {!websiteUrl && !xUrl && !linkedinUrl && '—'}
+                </dd>
               </div>
               <div><dt>Domain</dt><dd>{lead.company_domain || '—'}</dd></div>
               <div>
@@ -276,7 +330,7 @@ export default function LeadDetailPage() {
               />
               Eligible for AI-drafted emails
             </label>
-            <p className="hint" style={{ marginTop: 8 }}>WF-3 only drafts emails for eligible leads with a score of 60+.</p>
+            <p className="hint" style={{ marginTop: 8 }}>WF-3 only drafts emails for eligible leads with an email and a score of {MIN_SCORE}+.</p>
           </div>
 
           <div className="card card-pad">

@@ -4,6 +4,8 @@
 //   2. homepage: is there a product video? X / LinkedIn links?
 //   3. domain age via RDAP (free, public registry data)
 //   4. small + new + buying-signal rules from the Config node
+//   5. for qualified leads only: a free email search (site pages + Hacker News profile), so Hunter
+//      credits are only spent when the founder's email is not published anywhere
 // Output: one item per raw lead with `qualified` true/false and `disqualify_reason`.
 
 const cfg = $('Config').first().json
@@ -12,6 +14,7 @@ const MAX_DOMAIN_DAYS = Number(cfg.max_domain_age_days) || 730
 const MAX_LAUNCH_DAYS = Number(cfg.max_launch_age_days) || 90
 const JUST_LAUNCHED_DAYS = Number(cfg.just_launched_days) || 30
 const RDAP_BASE = String(cfg.rdap_base || 'https://rdap.org').replace(/\/+$/, '')
+const HN_API = String(cfg.hn_user_api || 'https://hacker-news.firebaseio.com/v0').replace(/\/+$/, '')
 const UA = 'Mozilla/5.0 (compatible; BearRadar/1.0; +https://bear.studio)'
 const DAY = 86400000
 
@@ -100,6 +103,104 @@ function socials(html) {
   return { x_handle: handles[0] || null, linkedin_url: linkedin }
 }
 
+// ---------- free email search ----------
+const FREE_MAIL = /^(gmail|googlemail|outlook|hotmail|live|icloud|me|proton|protonmail|pm|hey|fastmail|yahoo|zoho)\.[a-z.]+$/i
+const JUNK_LOCAL = /^(no-?reply|do-?not-?reply|donotreply|privacy|legal|abuse|postmaster|security|dmca|gdpr|dpo|unsubscribe|bounce[s]?|mailer-daemon|example|user|username|email|name|your|yourname|you|test|someone|john|jane|john\.doe|jane\.doe|wordpress|admin|webmaster|careers|jobs|press|billing|invoices?)$/i
+const JUNK_DOMAIN = /(example\.(com|org)|domain\.com|email\.com|sentry\.io|wixpress\.com|sentry-next\.wixpress\.com|yourcompany|company\.com|mysite\.com|godaddy\.com|squarespace\.com|w3\.org|schema\.org)$/i
+const EMAIL_RE = /[a-z0-9][a-z0-9._%+-]{0,63}@[a-z0-9.-]+\.[a-z]{2,24}/gi
+
+const decodeEntities = t => String(t || '')
+  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+// Cloudflare hides emails as <a data-cfemail="hex">; the first byte is the XOR key.
+const cfDecode = hex => {
+  try {
+    const key = parseInt(hex.slice(0, 2), 16)
+    let out = ''
+    for (let i = 2; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ key)
+    return out
+  } catch { return '' }
+}
+// "sam [at] acme [dot] com" / "sam (at) acme.com" style text.
+const deobfuscate = t => t
+  .replace(/\s*[\[(<{]\s*at\s*[\])>}]\s*/gi, '@')
+  .replace(/\s*[\[(<{]\s*dot\s*[\])>}]\s*/gi, '.')
+  .replace(/\s+at\s+(?=[a-z0-9-]+\s*(?:\.|\s+dot\s+)[a-z]{2,})/gi, '@')
+  .replace(/\s+dot\s+(?=[a-z]{2,}\b)/gi, '.')
+
+function emailsIn(html) {
+  const text = decodeEntities(html)
+  const found = [...text.matchAll(EMAIL_RE)].map(m => m[0])
+  for (const m of html.matchAll(/data-cfemail="([0-9a-f]+)"/gi)) found.push(cfDecode(m[1]))
+  for (const m of text.matchAll(/mailto:([^"'?\s>]+)/gi)) found.push(decodeURIComponent(m[1]))
+  return found
+}
+
+function rankEmails(list, companyHost, personName) {
+  const base = registrable(companyHost || '')
+  const first = String(personName || '').trim().split(/\s+/)[0]?.toLowerCase() || ''
+  const seen = new Set()
+  return list
+    .map(e => String(e || '').trim().toLowerCase().replace(/^mailto:/, '').replace(/[.,;:)\]]+$/, ''))
+    .filter(e => {
+      const [local, domain] = e.split('@')
+      if (!local || !domain || seen.has(e)) return false
+      seen.add(e)
+      if (/\.(png|jpe?g|gif|svg|webp|avif|ico|css|js)$/i.test(e) || /\d+x\d*$/.test(local)) return false
+      if (JUNK_LOCAL.test(local) || JUNK_DOMAIN.test(domain)) return false
+      return registrable(domain) === base || FREE_MAIL.test(domain)
+    })
+    .map(e => {
+      const local = e.split('@')[0]
+      let score = 0
+      if (first && first.length > 1 && local.includes(first)) score += 60
+      if (/^(founder|founders|ceo|cofounder|co-founder)$/.test(local)) score += 50
+      else if (/^(hi|hello|hey|yo)$/.test(local)) score += 35
+      else if (/^(contact|team|info|mail|inbox|general)$/.test(local)) score += 25
+      else if (/^(support|help|sales|feedback|partners?|marketing)$/.test(local)) score += 10
+      else score += 40 // looks like a person's own address
+      if (FREE_MAIL.test(e.split('@')[1])) score -= 5
+      return { email: e, score }
+    })
+    .sort((a, b) => b.score - a.score)
+}
+
+async function hnAbout(user) {
+  try {
+    const res = await get.call(this, `${HN_API}/user/${encodeURIComponent(user)}.json`, { headers: { 'User-Agent': UA, Accept: 'application/json' } })
+    if (res.statusCode !== 200) return ''
+    const data = typeof res.body === 'string' ? JSON.parse(res.body) : res.body
+    return deobfuscate(decodeEntities(String((data && data.about) || '').replace(/<[^>]+>/g, ' ')))
+  } catch { return '' }
+}
+
+// Homepage first, then a few likely pages on the same site; stops at the first good address.
+async function findEmail(site, lead, host) {
+  const person = lead.name
+  let ranked = rankEmails(emailsIn(site.html), host, person)
+  if (lead.source === 'hackernews' && lead.name && !(ranked[0] && ranked[0].score >= 60)) {
+    const about = await hnAbout.call(this, lead.name)
+    const fromHn = rankEmails(emailsIn(about), host, person).map(e => ({ ...e, score: e.score + 15 }))
+    ranked = [...fromHn, ...ranked].sort((a, b) => b.score - a.score)
+  }
+  if (ranked[0] && ranked[0].score >= 40) return { email: ranked[0].email, from: 'website' }
+  const linked = [...site.html.matchAll(/href="([^"#?]*(?:contact|about|team|founder|imprint|impressum)[^"#?]*)"/gi)]
+    .map(m => resolveUrl(m[1], site.url))
+    .filter(u => hostOf(u) === host)
+  const guesses = ['/contact', '/about', '/team'].map(p => resolveUrl(p, site.url))
+  for (const url of [...new Set([...linked, ...guesses])].slice(0, 4)) {
+    try {
+      const res = await get.call(this, url)
+      if (res.statusCode >= 400) continue
+      const more = rankEmails(emailsIn(String(res.body ?? '').slice(0, 400000)), host, person)
+      ranked = [...ranked, ...more].sort((a, b) => b.score - a.score)
+      if (ranked[0] && ranked[0].score >= 40) break
+    } catch { /* page missing: try the next one */ }
+  }
+  return ranked[0] ? { email: ranked[0].email, from: 'website' } : null
+}
+
 async function domainCreated(domain) {
   try {
     const res = await get.call(this, `${RDAP_BASE}/domain/${domain}`, {
@@ -172,6 +273,12 @@ async function check(lead) {
     return out
   }
   out.qualified = true
+  try {
+    const found = await findEmail.call(this, site, lead, host)
+    out.site_email = found ? found.email : null
+  } catch {
+    out.site_email = null
+  }
   return out
 }
 
