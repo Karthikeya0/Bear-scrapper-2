@@ -17,7 +17,7 @@ type Status = {
   supabase: { connected: boolean; error?: string }
   n8n: {
     baseUrlConfigured: boolean; secretConfigured: boolean; reachable: boolean; error?: string
-    webhooks?: { workflow: string; path: string; state: 'ready' | 'missing' | 'wrong_method' | 'unknown'; detail?: string }[]
+    webhooks?: { workflow: string; path: string; required?: boolean; state: 'ready' | 'missing' | 'wrong_method' | 'unknown'; detail?: string }[]
   }
 }
 
@@ -412,16 +412,20 @@ function SettingsInner() {
                         <span className="mono">/webhook/{path} <span className="subtle">{payload}</span></span>
                         {probe && (
                           <span title={probe.detail}>
-                            <span className={`badge as-is ${probe.state === 'ready' ? 'green' : probe.state === 'unknown' ? '' : 'red'}`}>
-                              {probe.state === 'ready' ? 'Ready' : probe.state === 'missing' ? 'Missing in n8n' : probe.state === 'wrong_method' ? 'Not POST' : 'Unknown'}
-                            </span>
+                            {probe.state === 'missing' && probe.required === false ? (
+                              <span className="badge as-is">Optional · runs in n8n</span>
+                            ) : (
+                              <span className={`badge as-is ${probe.state === 'ready' ? 'green' : probe.state === 'unknown' ? '' : 'red'}`}>
+                                {probe.state === 'ready' ? 'Ready' : probe.state === 'missing' ? 'Missing in n8n' : probe.state === 'wrong_method' ? 'Not POST' : 'Unknown'}
+                              </span>
+                            )}
                           </span>
                         )}
                       </span>
                     </div>
                   )
                 })}
-                {status?.n8n.webhooks?.some(w => w.state !== 'ready') && (
+                {status?.n8n.webhooks?.some(w => w.required !== false && w.state !== 'ready') && (
                   <div style={{ marginTop: 14 }}>
                     <Alert tone="warn" title="Some webhooks are not set up in n8n">
                       For each one marked Missing, open that workflow in n8n and add a <strong>Webhook</strong> trigger node with HTTP Method{' '}

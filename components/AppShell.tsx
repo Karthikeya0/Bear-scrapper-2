@@ -84,7 +84,9 @@ function useIntegrationHealth(enabled: boolean): Health {
         else if (!n8n.secretConfigured) setHealth({ state: 'warn', label: 'n8n secret missing', detail: 'Set N8N_WEBHOOK_SECRET' })
         else if (!n8n.reachable) setHealth({ state: 'bad', label: 'n8n unreachable', detail: n8n.error })
         else {
-          const notReady = ((n8n.webhooks ?? []) as { path: string; state: string }[]).filter(w => w.state !== 'ready')
+          const notReady = ((n8n.webhooks ?? []) as { path: string; state: string; required?: boolean }[]).filter(
+            w => w.required !== false && w.state !== 'ready',
+          )
           setHealth(
             notReady.length
               ? { state: 'warn', label: `n8n: ${notReady.length} webhook${notReady.length > 1 ? 's' : ''} not ready`, detail: notReady.map(w => w.path).join(', ') }
