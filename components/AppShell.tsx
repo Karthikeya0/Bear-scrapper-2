@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Role } from '@/lib/env'
 import { ToastProvider } from './Toast'
 import {
-  IconBolt, IconGrid, IconKanban, IconLogout, IconMail, IconMenu, IconPanel, IconSettings, IconTarget, IconUsers,
+  IconBolt, IconChart, IconGrid, IconKanban, IconLogout, IconMail, IconMenu, IconPanel, IconSettings, IconTarget, IconUsers,
 } from './icons'
 
 type NavItem = { href: string; label: string; icon: ReactNode; roles: Role[]; countKey?: 'outreach' }
@@ -25,6 +25,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { href: '/leads', label: 'Leads', icon: <IconTarget className="nav-icon" />, roles: ['owner'] },
       { href: '/outreach', label: 'Outreach queue', icon: <IconMail className="nav-icon" />, roles: ['owner'], countKey: 'outreach' },
+      { href: '/results', label: 'Results', icon: <IconChart className="nav-icon" />, roles: ['owner'] },
       { href: '/runs', label: 'Workflows', icon: <IconBolt className="nav-icon" />, roles: ['owner'] },
     ],
   },

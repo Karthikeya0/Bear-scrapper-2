@@ -5,7 +5,7 @@ import { requireRole } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-type QueueRow = { status: string | null; sent_at: string | null }
+type QueueRow = { status: string | null; sent_at: string | null; channel: string | null }
 type LeadRow = {
   name: string | null; company: string | null; email: string | null; website: string | null
   x_handle: string | null; linkedin_url: string | null; source: string | null; ai_score: number | null
@@ -21,7 +21,11 @@ const MAX_ROWS = 20000
 
 function outreachStatus(lead: LeadRow): { label: string; fill: string | null } {
   const queue = lead.outreach_queue ?? []
-  if (EMAILED.has(lead.status ?? '') || queue.some(q => q.status === 'sent')) return { label: 'Emailed', fill: GREEN }
+  if (lead.status === 'replied' || lead.status === 'converted') return { label: 'Replied', fill: GREEN }
+  if (EMAILED.has(lead.status ?? '') || queue.some(q => q.status === 'sent')) {
+    return { label: queue.some(q => q.status === 'sent' && q.channel !== 'dm') ? 'Emailed' : 'Messaged (DM)', fill: GREEN }
+  }
+  if (queue.some(q => q.status === 'scheduled')) return { label: 'Approved, sending soon', fill: AMBER }
   if (queue.some(q => q.status === 'pending_review' || q.status === 'approved')) return { label: 'Draft waiting for approval', fill: AMBER }
   return { label: 'Not contacted', fill: null }
 }
@@ -35,7 +39,7 @@ export async function GET() {
   for (let from = 0; from < MAX_ROWS; from += PAGE) {
     const { data, error } = await auth.supabase
       .from('leads')
-      .select('name, company, email, website, x_handle, linkedin_url, source, ai_score, status, team_size, launched_at, signals, ai_reasoning, created_at, outreach_queue(status, sent_at)')
+      .select('name, company, email, website, x_handle, linkedin_url, source, ai_score, status, team_size, launched_at, signals, ai_reasoning, created_at, outreach_queue(status, sent_at, channel)')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })

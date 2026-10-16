@@ -110,3 +110,6 @@ export const IconLock = (p: IconProps) => (
 export const IconSparkle = (p: IconProps) => (
   <svg {...base(p)}><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z" /><path d="M19 17l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" /></svg>
 )
+export const IconChart = (p: IconProps) => (
+  <svg {...base(p)}><path d="M3 3v18h18" /><path d="M7 15l4-4 3 3 6-6" /></svg>
+)

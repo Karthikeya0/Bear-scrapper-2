@@ -1,6 +1,6 @@
 // Builds the import-ready n8n workflows for Bear Radar from the Code-node sources in ./src.
 //   node n8n-workflows/radar/build.mjs
-// Output: n8n-workflows/WF1-lead-radar-sources.json, WF2-qualify-enrich.json, WF3-draft-outreach.json, WF3b-send-approved.json
+// Output: n8n-workflows/WF1-lead-radar-sources.json, WF2-qualify-enrich.json, WF3-draft-outreach.json, WF3b-send-approved.json, WF4-reply-monitor.json
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -112,6 +112,8 @@ const link = (connections, from, to, outputIndex = 0, inputIndex = 0) => {
 
 const SB = "{{ $('Config').first().json.supabase_url }}"
 const CONTINUE = { onError: 'continueRegularOutput' }
+// For AI calls: ride out short rate limits before giving up.
+const RETRY = { retryOnFail: true, maxTries: 3, waitBetweenTries: 5000 }
 
 // =====================================================================================
 // WF-1: Lead Radar – Sources
@@ -241,7 +243,7 @@ function buildWf2() {
         "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.2, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: " +
         JSON.stringify(GROQ_SYSTEM) +
         " }, { role: 'user', content: ['Company: ' + ($json.company || '?'), 'Website: ' + $json.website, 'Source: ' + $json.source, 'Launched: ' + ($json.launched_at || 'unknown'), 'Team size: ' + ($json.team_size || 'unknown'), 'Homepage has a video: ' + ($json.has_video === null ? 'unknown' : $json.has_video), 'Signals: ' + ($json.signals || []).join(', '), 'Founder: ' + ($json.name || '?') + ($json.founder_role ? ' (' + $json.founder_role + ')' : ''), 'About: ' + String($json.post_content || '').slice(0, 1500)].join('\\n') } ] }) }}",
-    }, CONTINUE),
+    }, { ...CONTINUE, ...RETRY }),
     code('Build lead row', [1780, 0], 'wf2-build-lead.js', 'runOnceForEachItem'),
     http('Save lead', [2000, 0], {
       method: 'POST',
@@ -293,19 +295,10 @@ function buildWf2() {
 }
 
 // =====================================================================================
-// WF-3: Draft Outreach (Groq writes one email per qualified lead -> outreach_queue, pending_review)
+// WF-3: Draft Outreach — first emails, follow-ups and X/LinkedIn DMs -> outreach_queue (pending_review)
 // =====================================================================================
-const WRITER_SYSTEM =
-  'You write short cold emails for Bear Studios, a small studio that makes brand launch videos, promo videos and SaaS explainer videos for startups. ' +
-  'Write to the founder of the company described. Rules: plain text, 60-110 words, no markdown, no emojis, no exclamation marks. ' +
-  'Open with the provided hook or another specific detail about what they built or launched (never "I hope this finds you well"). ' +
-  'Then offer ONE fitting service: no video on their homepage -> a 60-90s explainer; just launched -> a launch/promo video for socials; otherwise whichever fits best. ' +
-  'Never invent facts, numbers, clients or results. Mention the portfolio link only if one is given. ' +
-  'End with a soft, low-effort question (e.g. "Worth a quick look at a few examples?"), then sign off with the sender name on its own line. ' +
-  'Address the founder by first name if given, otherwise "Hi there". Subject: under 7 words, lowercase is fine, specific to them, no clickbait. ' +
-  'Output ONLY JSON: {"subject": "...", "body": "..."}'
-
 function buildWf3() {
+  const once = { executeOnce: true, alwaysOutputData: true }
   const nodes = [
     schedule('Every 3 hours', [0, 0], { field: 'hours', hoursInterval: 3 }),
     webhook('Dashboard: Draft outreach', [0, 200], 'wf3-outreach'),
@@ -313,6 +306,8 @@ function buildWf3() {
       supabase_url: 'https://YOUR-PROJECT-REF.supabase.co',
       batch_size: 10,
       min_score: 60,
+      follow_up_days: '4,7',
+      draft_dms: true,
       sender_name: 'Bear Studios',
       portfolio_url: '',
       groq_url: 'https://api.groq.com/openai/v1/chat/completions',
@@ -321,27 +316,38 @@ function buildWf3() {
     }),
     http('Fetch leads to draft', [460, 100], {
       url:
-        `=${SB}/rest/v1/leads?select=*,outreach_queue(id,status)&outreach_queue=is.null&status=eq.scored&outreach_eligible=eq.true` +
-        '&email=not.is.null&ai_score=gte.{{ $json.min_score }}&order=ai_score.desc&limit={{ $json.batch_size }}',
+        `=${SB}/rest/v1/leads?select=*,outreach_queue(id)&outreach_queue=is.null&status=eq.scored&outreach_eligible=eq.true` +
+        "&email=not.is.null&ai_score=gte.{{ $('Config').first().json.min_score }}&order=ai_score.desc&limit={{ $('Config').first().json.batch_size }}",
       auth: { supabase: true },
-    }, { alwaysOutputData: true }),
-    code('Pick leads to draft', [680, 100], 'wf3-pick-leads.js', 'runOnceForAllItems'),
-    ifTrue('Anything to draft?', [900, 100], '={{ !!$json.id }}'),
-    http('Groq: write email', [1120, 0], {
+    }, once),
+    http('Fetch DM leads', [680, 100], {
+      url:
+        `=${SB}/rest/v1/leads?select=*,outreach_queue(id)&outreach_queue=is.null&status=eq.scored&email=is.null` +
+        "&or=(x_handle.not.is.null,linkedin_url.not.is.null)&ai_score=gte.{{ $('Config').first().json.min_score }}&order=ai_score.desc&limit={{ $('Config').first().json.batch_size }}",
+      auth: { supabase: true },
+    }, once),
+    http('Fetch follow-ups', [900, 100], {
+      url:
+        `=${SB}/rest/v1/leads?select=*,outreach_queue(id,subject,body,status,sequence_step,sent_at,channel)` +
+        '&status=eq.contacted&email=not.is.null&order=first_contacted_at.asc&limit=200',
+      auth: { supabase: true },
+    }, once),
+    code('Plan drafts', [1120, 100], 'wf3-plan.js'),
+    ifTrue('Anything to draft?', [1340, 100], '={{ !!$json.lead_id }}'),
+    http('Groq: write message', [1560, 0], {
       method: 'POST',
       url: "={{ $('Config').first().json.groq_url }}",
       auth: { header: CRED.groq },
       timeout: 60000,
-      // One request every 2.5s keeps 10 drafts inside Groq's free-tier rate limits.
+      // One request every 2.5s keeps a batch inside Groq's free-tier rate limits.
       batching: { batchSize: 1, batchInterval: 2500 },
       body:
-        "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.6, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: " +
-        JSON.stringify(WRITER_SYSTEM) +
-        " }, { role: 'user', content: ['Founder first name: ' + ($json.first_name || 'unknown'), 'Founder role: ' + ($json.founder_role || 'unknown'), 'Company: ' + ($json.company || '?'), 'Website: ' + ($json.website || $json.company_domain || '?'), 'Launched: ' + ($json.launched_at || 'unknown') + ' (via ' + $json.source + ')', 'Homepage has a video: ' + ($json.has_video === null || $json.has_video === undefined ? 'unknown' : $json.has_video), 'Signals: ' + (Array.isArray($json.signals) ? $json.signals.join(', ') : ''), 'Hook: ' + ($json.hook || 'none'), 'About: ' + String($json.bio || $json.post_content || '').slice(0, 1200), 'Sender name: ' + $('Config').first().json.sender_name, 'Portfolio link: ' + ($('Config').first().json.portfolio_url || 'none')].join('\\n') } ] }) }}",
-    }, CONTINUE),
-    code('Build drafts', [1340, 0], 'wf3-build-drafts.js'),
-    ifTrue('Any drafts?', [1560, 0], '={{ $json.rows.length > 0 }}'),
-    http('Queue for review', [1780, -100], {
+        "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.6, response_format: { type: 'json_object' }, " +
+        "messages: [ { role: 'system', content: $json.system }, { role: 'user', content: $json.user } ] }) }}",
+    }, { ...CONTINUE, ...RETRY }),
+    code('Build drafts', [1780, 0], 'wf3-build-drafts.js'),
+    ifTrue('Any drafts?', [2000, 0], '={{ $json.rows.length > 0 }}'),
+    http('Queue for review', [2220, -100], {
       method: 'POST',
       url: `=${SB}/rest/v1/outreach_queue`,
       auth: { supabase: true },
@@ -349,8 +355,8 @@ function buildWf3() {
       headers: [['Prefer', 'return=minimal']],
       body: '={{ JSON.stringify($json.rows) }}',
     }, { alwaysOutputData: true }),
-    code('Run summary', [2000, 100], 'wf3-summary.js'),
-    http('Write run log', [2000, 100], {
+    code('Run summary', [2440, 100], 'wf3-summary.js'),
+    http('Write run log', [2660, 100], {
       method: 'POST',
       url: `=${SB}/rest/v1/workflow_logs`,
       auth: { supabase: true },
@@ -359,18 +365,19 @@ function buildWf3() {
       body: '={{ JSON.stringify($json) }}',
     }),
   ]
-  // Pick emits one empty item when nothing is left to draft, so the run is still logged.
-  nodes.find(n => n.name === 'Pick leads to draft').alwaysOutputData = true
-  nodes.find(n => n.name === 'Write run log').position = [2220, 100]
+  // Plan emits one empty item when nothing is left to draft, so the run is still logged.
+  nodes.find(n => n.name === 'Plan drafts').alwaysOutputData = true
   const c = {}
   link(c, 'Every 3 hours', 'Config')
   link(c, 'Dashboard: Draft outreach', 'Config')
   link(c, 'Config', 'Fetch leads to draft')
-  link(c, 'Fetch leads to draft', 'Pick leads to draft')
-  link(c, 'Pick leads to draft', 'Anything to draft?')
-  link(c, 'Anything to draft?', 'Groq: write email', 0)
+  link(c, 'Fetch leads to draft', 'Fetch DM leads')
+  link(c, 'Fetch DM leads', 'Fetch follow-ups')
+  link(c, 'Fetch follow-ups', 'Plan drafts')
+  link(c, 'Plan drafts', 'Anything to draft?')
+  link(c, 'Anything to draft?', 'Groq: write message', 0)
   link(c, 'Anything to draft?', 'Run summary', 1)
-  link(c, 'Groq: write email', 'Build drafts')
+  link(c, 'Groq: write message', 'Build drafts')
   link(c, 'Build drafts', 'Any drafts?')
   link(c, 'Any drafts?', 'Queue for review', 0)
   link(c, 'Any drafts?', 'Run summary', 1)
@@ -380,35 +387,83 @@ function buildWf3() {
 }
 
 // =====================================================================================
-// WF-3b: Send Approved (dashboard "Approve & send" -> Gmail -> mark sent / return to review)
-// Same webhook path and payload as before: POST /webhook/approve-and-send { outreach_id, lead_id, approved_at }
+// WF-3b: Send Approved
+//   • Dashboard "Approve & send" -> POST /webhook/approve-and-send { outreach_id } -> sends now (same path/payload as before)
+//   • Every 10 minutes -> sends ONE bulk-approved ("scheduled") email inside the send window, under daily_max
+//   Follow-ups (step 2+) are sent as replies in the original Gmail thread.
 // =====================================================================================
 function buildWf3b() {
   const Q = "$('Fetch approved email').first().json"
+  const once = { executeOnce: true, alwaysOutputData: true }
+  const gmailCred = { credentials: { gmailOAuth2: { id: 'bearGmail', name: 'Gmail account' } }, ...CONTINUE }
+  const gmailOptions = { appendAttribution: false, senderName: "={{ $('Config').first().json.sender_name }}" }
   const nodes = [
-    webhook('Dashboard: Approve & send', [0, 100], 'approve-and-send'),
+    webhook('Dashboard: Approve & send', [0, 0], 'approve-and-send'),
+    schedule('Every 10 minutes', [0, 240], { field: 'minutes', minutesInterval: 10 }),
     config('Config', [220, 100], {
       supabase_url: 'https://YOUR-PROJECT-REF.supabase.co',
       sender_name: 'Bear Studios',
+      daily_max: 20,
+      send_window_start: 9,
+      send_window_end: 18,
+      send_on_weekends: false,
+      timezone: 'Asia/Kolkata',
       started_at: '={{ $now.toISO() }}',
     }),
-    http('Fetch approved email', [440, 100], {
+    ifTrue('From dashboard?', [440, 100], "={{ $('Dashboard: Approve & send').isExecuted }}"),
+    http('Sent today', [660, 240], {
       url:
-        `=${SB}/rest/v1/outreach_queue?id=eq.{{ $('Dashboard: Approve & send').first().json.body.outreach_id }}&status=eq.approved` +
-        '&select=id,lead_id,subject,body,sequence_step,leads(id,email,name,company,status)',
+        `=${SB}/rest/v1/outreach_queue?select=id&status=eq.sent&channel=eq.email` +
+        "&sent_at=gte.{{ encodeURIComponent($now.setZone($('Config').first().json.timezone).startOf('day').toUTC().toISO()) }}",
+      auth: { supabase: true },
+    }, once),
+    http('Next scheduled', [880, 240], {
+      url: `=${SB}/rest/v1/outreach_queue?select=id&status=eq.scheduled&channel=eq.email&order=approved_at.asc.nullslast,created_at.asc&limit=1`,
+      auth: { supabase: true },
+    }, once),
+    code('Can send now?', [1100, 240], 'wf3b-can-send.js'),
+    // Moves it scheduled -> approved; only one run can claim a row, so nothing is sent twice.
+    http('Claim scheduled', [1320, 240], {
+      method: 'PATCH',
+      url: `=${SB}/rest/v1/outreach_queue?id=eq.{{ $json.id }}&status=eq.scheduled`,
+      auth: { supabase: true },
+      headers: [['Prefer', 'return=representation']],
+      body: "={{ JSON.stringify({ status: 'approved', approved_at: new Date().toISOString() }) }}",
+    }),
+    code('Target', [1540, 100], 'wf3b-target.js'),
+    http('Fetch approved email', [1760, 100], {
+      url:
+        `=${SB}/rest/v1/outreach_queue?id=eq.{{ $json.outreach_id }}&status=eq.approved` +
+        '&select=id,lead_id,subject,body,sequence_step,channel,leads(id,email,name,company,status)',
       auth: { supabase: true },
     }, { alwaysOutputData: true }),
-    ifTrue('Ready to send?', [660, 100],
-      "={{ !!$json.id && !!($json.leads && $json.leads.email) && !['unsubscribed', 'bounced', 'dead'].includes($json.leads.status) }}"),
-    node('Gmail: send', 'n8n-nodes-base.gmail', 2.1, [880, 0], {
-      sendTo: '={{ $json.leads.email }}',
-      subject: '={{ $json.subject }}',
+    ifTrue('Ready to send?', [1980, 100],
+      "={{ !!$json.id && $json.channel !== 'dm' && !!($json.leads && $json.leads.email) && !['unsubscribed', 'bounced', 'dead', 'replied'].includes($json.leads.status) }}"),
+    http('Previous message', [2200, 0], {
+      url: `=${SB}/rest/v1/outreach_history?select=message_id,thread_id&lead_id=eq.{{ ${Q}.lead_id }}&message_id=not.is.null&order=sent_at.desc&limit=1`,
+      auth: { supabase: true },
+    }, once),
+    ifTrue('Reply in thread?', [2420, 0], `={{ (${Q}.sequence_step || 1) > 1 && !!$json.message_id && !!$json.thread_id }}`),
+    node('Gmail: reply', 'n8n-nodes-base.gmail', 2.1, [2640, -100], {
+      // Thread reply (not message reply): only it supports "reply to recipients only", so the lead gets it, not you.
+      resource: 'thread',
+      operation: 'reply',
+      threadId: '={{ $json.thread_id }}',
+      messageId: '={{ $json.message_id }}',
       emailType: 'text',
-      message: '={{ $json.body }}',
-      options: { appendAttribution: false, senderName: "={{ $('Config').first().json.sender_name }}" },
-    }, { credentials: { gmailOAuth2: { id: 'bearGmail', name: 'Gmail account' } }, ...CONTINUE }),
-    ifTrue('Sent?', [1100, 0], '={{ !!$json.id && !$json.error }}'),
-    http('Mark sent', [1320, -100], {
+      message: `={{ ${Q}.body }}`,
+      options: { ...gmailOptions, replyToRecipientsOnly: true },
+    }, gmailCred),
+    node('Gmail: send', 'n8n-nodes-base.gmail', 2.1, [2640, 100], {
+      sendTo: `={{ ${Q}.leads.email }}`,
+      subject: `={{ ${Q}.subject }}`,
+      emailType: 'text',
+      message: `={{ ${Q}.body }}`,
+      options: gmailOptions,
+    }, gmailCred),
+    code('Send result', [2860, 0], 'wf3b-send-result.js', 'runOnceForEachItem'),
+    ifTrue('Sent?', [3080, 0], '={{ $json.ok }}'),
+    http('Mark sent', [3300, -100], {
       method: 'PATCH',
       url: `=${SB}/rest/v1/outreach_queue?id=eq.{{ ${Q}.id }}`,
       auth: { supabase: true },
@@ -416,7 +471,7 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body: "={{ JSON.stringify({ status: 'sent', sent_at: new Date().toISOString() }) }}",
     }),
-    http('Save history', [1540, -100], {
+    http('Save history', [3520, -100], {
       method: 'POST',
       url: `=${SB}/rest/v1/outreach_history`,
       auth: { supabase: true },
@@ -424,10 +479,10 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body:
         `={{ JSON.stringify({ lead_id: ${Q}.lead_id, outreach_id: ${Q}.id, subject: ${Q}.subject, body: ${Q}.body, body_sent: ${Q}.body, ` +
-        `sequence_step: ${Q}.sequence_step || 1, thread_id: $('Gmail: send').first().json.threadId || null, message_id: $('Gmail: send').first().json.id || null, sent_at: new Date().toISOString() }) }}`,
+        `sequence_step: ${Q}.sequence_step || 1, thread_id: $('Send result').first().json.thread_id, message_id: $('Send result').first().json.message_id, sent_at: new Date().toISOString() }) }}`,
     }, CONTINUE),
     // Only moves fresh leads to "contacted", so a lead that already replied is never downgraded.
-    http('Mark lead contacted', [1760, -100], {
+    http('Mark lead contacted', [3740, -100], {
       method: 'PATCH',
       url: `=${SB}/rest/v1/leads?id=eq.{{ ${Q}.lead_id }}&status=eq.scored`,
       auth: { supabase: true },
@@ -435,7 +490,7 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body: "={{ JSON.stringify({ status: 'contacted', first_contacted_at: new Date().toISOString() }) }}",
     }),
-    http('Log sent', [1980, -100], {
+    http('Log sent', [3960, -100], {
       method: 'POST',
       url: `=${SB}/rest/v1/workflow_logs`,
       auth: { supabase: true },
@@ -443,7 +498,7 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body: "={{ JSON.stringify({ workflow_name: 'WF-3b-SendApproved', status: 'success', emails_sent: 1, started_at: $('Config').first().json.started_at, finished_at: new Date().toISOString() }) }}",
     }),
-    http('Return to review', [1320, 100], {
+    http('Return to review', [3300, 100], {
       method: 'PATCH',
       url: `=${SB}/rest/v1/outreach_queue?id=eq.{{ ${Q}.id }}&status=eq.approved`,
       auth: { supabase: true },
@@ -451,7 +506,7 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body: "={{ JSON.stringify({ status: 'pending_review', approved_at: null }) }}",
     }),
-    http('Log failure', [1540, 200], {
+    http('Log failure', [3520, 240], {
       method: 'POST',
       url: `=${SB}/rest/v1/workflow_logs`,
       auth: { supabase: true },
@@ -459,18 +514,31 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body:
         "={{ JSON.stringify({ workflow_name: 'WF-3b-SendApproved', status: 'failed', emails_sent: 0, started_at: $('Config').first().json.started_at, finished_at: new Date().toISOString(), " +
-        "errors: [{ outreach_id: $('Dashboard: Approve & send').first().json.body.outreach_id, message: $('Gmail: send').isExecuted " +
-        "? 'Gmail send failed: ' + String(($('Gmail: send').first().json.error && ($('Gmail: send').first().json.error.message || $('Gmail: send').first().json.error)) || 'unknown error').slice(0, 300) + ' (email returned to the review queue)' " +
-        ": 'Not sent: the email is no longer approved, or the lead has no email / unsubscribed.' }] }) }}",
+        "errors: [{ outreach_id: $('Target').first().json.outreach_id, message: $('Send result').isExecuted " +
+        "? 'Gmail send failed: ' + String($('Send result').first().json.error || 'unknown error') + ' (email returned to the review queue)' " +
+        ": 'Not sent: the email is no longer approved, is a DM, or the lead has no email / replied / unsubscribed.' }] }) }}",
     }),
   ]
   const c = {}
   link(c, 'Dashboard: Approve & send', 'Config')
-  link(c, 'Config', 'Fetch approved email')
+  link(c, 'Every 10 minutes', 'Config')
+  link(c, 'Config', 'From dashboard?')
+  link(c, 'From dashboard?', 'Target', 0)
+  link(c, 'From dashboard?', 'Sent today', 1)
+  link(c, 'Sent today', 'Next scheduled')
+  link(c, 'Next scheduled', 'Can send now?')
+  link(c, 'Can send now?', 'Claim scheduled')
+  link(c, 'Claim scheduled', 'Target')
+  link(c, 'Target', 'Fetch approved email')
   link(c, 'Fetch approved email', 'Ready to send?')
-  link(c, 'Ready to send?', 'Gmail: send', 0)
+  link(c, 'Ready to send?', 'Previous message', 0)
   link(c, 'Ready to send?', 'Log failure', 1)
-  link(c, 'Gmail: send', 'Sent?')
+  link(c, 'Previous message', 'Reply in thread?')
+  link(c, 'Reply in thread?', 'Gmail: reply', 0)
+  link(c, 'Reply in thread?', 'Gmail: send', 1)
+  link(c, 'Gmail: reply', 'Send result')
+  link(c, 'Gmail: send', 'Send result')
+  link(c, 'Send result', 'Sent?')
   link(c, 'Sent?', 'Mark sent', 0)
   link(c, 'Sent?', 'Return to review', 1)
   link(c, 'Mark sent', 'Save history')
@@ -480,11 +548,88 @@ function buildWf3b() {
   return { name: 'WF-3b: Send Approved', nodes, connections: c, settings: { executionOrder: 'v1' }, pinData: {} }
 }
 
+// =====================================================================================
+// WF-4: Reply Monitor — marks leads replied / bounced and cancels their unsent follow-ups
+// =====================================================================================
+function buildWf4() {
+  const once = { executeOnce: true, alwaysOutputData: true }
+  const F = "$('Find replies & bounces').item.json"
+  const nodes = [
+    schedule('Every 30 minutes', [0, 0], { field: 'minutes', minutesInterval: 30 }),
+    webhook('Dashboard: Check replies', [0, 200], 'wf4-reply-monitor'),
+    config('Config', [220, 100], {
+      supabase_url: 'https://YOUR-PROJECT-REF.supabase.co',
+      lookback_days: 3,
+      started_at: '={{ $now.toISO() }}',
+    }),
+    node('Gmail: recent inbox', 'n8n-nodes-base.gmail', 2.1, [440, 100], {
+      resource: 'message',
+      operation: 'getAll',
+      returnAll: false,
+      limit: 100,
+      simple: true,
+      filters: { q: "={{ 'in:inbox newer_than:' + $('Config').first().json.lookback_days + 'd -from:me' }}" },
+      options: {},
+    }, { credentials: { gmailOAuth2: { id: 'bearGmail', name: 'Gmail account' } }, ...CONTINUE, ...once }),
+    http('Sent threads', [660, 100], {
+      url: `=${SB}/rest/v1/outreach_history?select=lead_id,thread_id&thread_id=not.is.null&order=sent_at.desc&limit=2000`,
+      auth: { supabase: true },
+    }, once),
+    http('Contacted leads', [880, 100], {
+      url: `=${SB}/rest/v1/leads?select=id,email&status=eq.contacted&email=not.is.null&limit=5000`,
+      auth: { supabase: true },
+    }, once),
+    code('Find replies & bounces', [1100, 100], 'wf4-find-replies.js'),
+    ifTrue('Anything found?', [1320, 100], '={{ !!$json.lead_id }}'),
+    http('Update lead', [1540, 0], {
+      method: 'PATCH',
+      url: `=${SB}/rest/v1/leads?id=eq.{{ $json.lead_id }}&status=in.(scored,contacted)`,
+      auth: { supabase: true },
+      responseFormat: 'text',
+      headers: [['Prefer', 'return=minimal']],
+      body: "={{ JSON.stringify($json.kind === 'replied' ? { status: 'replied', replied_at: $json.replied_at } : { status: 'bounced' }) }}",
+    }),
+    http('Cancel follow-ups', [1760, 0], {
+      method: 'PATCH',
+      url: `=${SB}/rest/v1/outreach_queue?lead_id=eq.{{ ${F}.lead_id }}&status=in.(pending_review,scheduled)`,
+      auth: { supabase: true },
+      responseFormat: 'text',
+      headers: [['Prefer', 'return=minimal']],
+      body: "={{ JSON.stringify({ status: 'rejected', rejected_at: new Date().toISOString() }) }}",
+    }),
+    code('Run summary', [1980, 100], 'wf4-summary.js'),
+    http('Write run log', [2200, 100], {
+      method: 'POST',
+      url: `=${SB}/rest/v1/workflow_logs`,
+      auth: { supabase: true },
+      responseFormat: 'text',
+      headers: [['Prefer', 'return=minimal']],
+      body: '={{ JSON.stringify($json) }}',
+    }),
+  ]
+  nodes.find(n => n.name === 'Find replies & bounces').alwaysOutputData = true
+  const c = {}
+  link(c, 'Every 30 minutes', 'Config')
+  link(c, 'Dashboard: Check replies', 'Config')
+  link(c, 'Config', 'Gmail: recent inbox')
+  link(c, 'Gmail: recent inbox', 'Sent threads')
+  link(c, 'Sent threads', 'Contacted leads')
+  link(c, 'Contacted leads', 'Find replies & bounces')
+  link(c, 'Find replies & bounces', 'Anything found?')
+  link(c, 'Anything found?', 'Update lead', 0)
+  link(c, 'Anything found?', 'Run summary', 1)
+  link(c, 'Update lead', 'Cancel follow-ups')
+  link(c, 'Cancel follow-ups', 'Run summary')
+  link(c, 'Run summary', 'Write run log')
+  return { name: 'WF-4: Reply Monitor', nodes, connections: c, settings: { executionOrder: 'v1' }, pinData: {} }
+}
+
 for (const [file, wf] of [
   ['WF1-lead-radar-sources.json', buildWf1()],
   ['WF2-qualify-enrich.json', buildWf2()],
   ['WF3-draft-outreach.json', buildWf3()],
   ['WF3b-send-approved.json', buildWf3b()],
+  ['WF4-reply-monitor.json', buildWf4()],
 ]) {
   writeFileSync(out(file), JSON.stringify(wf, null, 2) + '\n')
   console.log(`wrote n8n-workflows/${file} (${wf.nodes.length} nodes)`)

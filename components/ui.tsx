@@ -10,7 +10,7 @@ const STATUS_TONES: Record<string, Tone> = {
   scored: 'blue', contacted: 'violet', replied: 'green', converted: 'green',
   dead: 'gray', unsubscribed: 'gray', disqualified: 'gray', bounced: 'red',
   // outreach
-  pending_review: 'amber', approved: 'blue', sent: 'green', rejected: 'gray',
+  pending_review: 'amber', scheduled: 'violet', approved: 'blue', sent: 'green', rejected: 'gray',
   // projects / tasks
   todo: 'gray', in_progress: 'blue', review: 'amber', delivered: 'green',
   // clients

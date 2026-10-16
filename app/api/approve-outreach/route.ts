@@ -35,12 +35,14 @@ export async function POST(request: NextRequest) {
   if (subject !== undefined) updates.subject = subject
   if (emailBody !== undefined) updates.body = emailBody
 
-  // Only transition rows still awaiting review — prevents double sends from double clicks or two tabs.
+  // Only transition rows still awaiting review (or scheduled, for "send now") — prevents double sends
+  // from double clicks or two tabs. DMs are never emailed.
   const { data: row, error: updateError } = await supabase
     .from('outreach_queue')
     .update(updates)
     .eq('id', outreach_id)
-    .eq('status', 'pending_review')
+    .in('status', ['pending_review', 'scheduled'])
+    .eq('channel', 'email')
     .select('id, lead_id')
     .maybeSingle()
 
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
   }
   if (!row) {
     return NextResponse.json(
-      { ok: false, error: 'This email is no longer pending review (it may already have been approved).' },
+      { ok: false, error: 'This email is no longer waiting to be sent (it may already have been sent, or it is a DM).' },
       { status: 409 },
     )
   }

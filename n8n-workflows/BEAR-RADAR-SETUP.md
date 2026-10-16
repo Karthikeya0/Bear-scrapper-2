@@ -7,10 +7,11 @@ finds the founder's email, and queues a personalised pitch for your approval in 
 |---|---|---|
 | `WF1-lead-radar-sources.json` | WF-1 (Reddit scraper) | Every 6h or on "Scrape leads": Hacker News *Show HN*, YC (new, ≤3 people), BetaList, Product Hunt → `raw_leads` (duplicates skipped) |
 | `WF2-qualify-enrich.json` | WF-2 (processor) | Hourly or on "Score & enrich": free checks first (team size, launch date, domain age, homepage video, X/LinkedIn), then Hunter (founder email) **only for qualified leads**, then Groq score → `leads`. Every qualified lead is saved, even when Hunter finds no email (it shows with its website / X / LinkedIn; only leads with an email get drafted). |
-| `WF3-draft-outreach.json` | WF-3 (outreach generator) | Every 3h or on "Draft outreach": Groq writes one short email per qualified lead (score ≥ 60, has an email, never drafted) → `outreach_queue` as **pending review**. Nothing is sent. |
-| `WF3b-send-approved.json` | WF-3b (send approved) | When you click **Approve & send** in the dashboard: sends that one email with Gmail, marks it **sent**, marks the lead **contacted**, saves it to `outreach_history`. If Gmail fails the email goes back to the review queue. Same webhook (`approve-and-send`) and payload as before. |
+| `WF3-draft-outreach.json` | WF-3 (outreach generator) | Every 3h or on "Draft new emails": Groq writes **first emails** (score ≥ 60, has an email), **follow-ups** (step 2 after 4 days, step 3 after 7 more, only if no reply) and **X/LinkedIn DMs** for good leads without an email → `outreach_queue` as **pending review**. Nothing is sent. |
+| `WF3b-send-approved.json` | WF-3b (send approved) | **Approve & send** in the dashboard sends that one email now. **Approve all** schedules them; WF-3b then sends one every 10 minutes inside your send window, up to `daily_max` a day. Follow-ups go out as replies in the same Gmail thread. Marks emails **sent**, leads **contacted**, saves `outreach_history`; on a Gmail error the email goes back to review. Same webhook (`approve-and-send`) and payload as before. |
+| `WF4-reply-monitor.json` | WF-4 (reply monitor) | Every 30 min: reads your Gmail inbox (last 3 days), marks leads **replied** (ignores out-of-office) or **bounced**, and cancels their unsent follow-ups. |
 
-WF-4 and WF-5 are unchanged. The old files are kept in `legacy/` for reference only.
+WF-5 is unchanged. The old files are kept in `legacy/` for reference only.
 
 ---
 
@@ -59,17 +60,15 @@ If any node is red, open it, copy the error, and send it to me.
 
 ---
 
-## Step 6 — Outreach: WF-3 (drafts) and WF-3b (send) (5 min)
-1. In n8n, **unpublish and delete** the old *WF-3* (it starts with a **Manual Trigger** → *Fetch Leads for Outreach*)
-   and the old *WF-3b* (*Webhook: Approve & Send* → *Code: Validate Secret*). The new ones reuse their webhook paths.
-2. Credential: **Gmail account** — type *Gmail OAuth2* (skip if you already have one; reuse it).
-3. Import `WF3-draft-outreach.json` and `WF3b-send-approved.json`, **each as its own workflow** (Step 4 again):
-   - **Config** → `supabase_url`; in both also check `sender_name` (shown as the From name and email sign-off).
-     WF-3 also has `portfolio_url` (optional link the email may mention), `batch_size` (10) and `min_score` (60).
-   - Pick credentials on the ⚠️ nodes (dashboard secret, Supabase, Groq; Gmail in WF-3b) → **Save → Publish**.
-4. Dashboard → **Settings → Integrations → Re-check**: `wf3-outreach` and `approve-and-send` show **Ready**.
-5. Dashboard → **Workflows → Draft outreach → Run now** → **Outreach** page → read each draft, edit if you like,
-   then **Approve & send** (or Reject). Sent leads turn green on the **Leads** page and in **Export to Excel**.
+## Step 6 — Outreach: WF-3, WF-3b, WF-4 (10 min)
+1. Supabase → SQL Editor → run `supabase/migrations/005_outreach_v2.sql` (adds "scheduled" and DM support; deletes nothing).
+2. In n8n, unpublish and delete your current WF-3, WF-3b and WF-4.
+3. Import `WF3-draft-outreach.json`, `WF3b-send-approved.json` and `WF4-reply-monitor.json`, **each as its own new workflow**
+   (Create workflow → ⋮ → Import from File — never paste two into one canvas).
+   In each: **Config** → `supabase_url`; pick credentials on ⚠️ nodes (dashboard secret, Supabase, Groq, Gmail) → **Save → Publish**.
+   In WF-3b's Config also check `timezone` (default Asia/Kolkata), `send_window_start`/`end` (9–18), `daily_max` (20).
+4. Dashboard → Settings → Integrations → Re-check: `wf3-outreach`, `approve-and-send`, `wf4-reply-monitor` show **Ready**.
+5. Outreach queue → **Draft new emails**. The **Pipeline** box says how many leads are ready and, if none, exactly why.
 
 ## Settings you can change (Config node — no code)
 | Setting | Default | Meaning |
@@ -81,7 +80,11 @@ If any node is red, open it, copy the error, and send it to me.
 | `just_launched_days` (WF-2) | 30 | Counts as a "just launched" buying signal |
 | `batch_size` (WF-2) | 25 | Raw leads checked per run — lower it to save Hunter credits |
 | `min_score` (WF-2, WF-3) | 60 | AI score needed for WF-3 to draft an email |
-| `batch_size` (WF-3) | 10 | Emails drafted per run (Groq calls are spaced 2.5 s apart for the free tier) |
+| `batch_size` (WF-3) | 10 | Drafts written per run (Groq calls are spaced 2.5 s apart and retried on rate limits) |
+| `follow_up_days` (WF-3) | 4,7 | Days to wait before follow-up 2, then follow-up 3. `4` = one follow-up only |
+| `draft_dms` (WF-3) | true | Also draft X/LinkedIn DMs for good leads without an email |
+| `daily_max`, `send_window_start`/`end`, `send_on_weekends`, `timezone` (WF-3b) | 20, 9, 18, false, Asia/Kolkata | Limits for bulk-approved emails ("Approve & send" on one email always sends right away) |
+| `lookback_days` (WF-4) | 3 | How far back WF-4 reads your inbox |
 | `sender_name` / `portfolio_url` (WF-3, WF-3b) | Bear Studios / empty | Sign-off and From name; optional portfolio link |
 
 **Qualification rule:** small **and** new **and** a buying signal (*just launched* or *no video on homepage*).

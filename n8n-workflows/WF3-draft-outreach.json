@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000066",
+      "id": "b3a5e7c1-0000-4000-8000-000000000068",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -78,30 +78,42 @@
             },
             {
               "id": "c0f19a00-0000-4000-8000-000000000061",
+              "name": "follow_up_days",
+              "value": "4,7",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000062",
+              "name": "draft_dms",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000063",
               "name": "sender_name",
               "value": "Bear Studios",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000062",
+              "id": "c0f19a00-0000-4000-8000-000000000064",
               "name": "portfolio_url",
               "value": "",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000063",
+              "id": "c0f19a00-0000-4000-8000-000000000065",
               "name": "groq_url",
               "value": "https://api.groq.com/openai/v1/chat/completions",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000064",
+              "id": "c0f19a00-0000-4000-8000-000000000066",
               "name": "groq_model",
               "value": "llama-3.3-70b-versatile",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000065",
+              "id": "c0f19a00-0000-4000-8000-000000000067",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -113,7 +125,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000067",
+      "id": "b3a5e7c1-0000-4000-8000-000000000069",
       "name": "Fetch leads to draft",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -123,7 +135,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/leads?select=*,outreach_queue(id,status)&outreach_queue=is.null&status=eq.scored&outreach_eligible=eq.true&email=not.is.null&ai_score=gte.{{ $json.min_score }}&order=ai_score.desc&limit={{ $json.batch_size }}",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/leads?select=*,outreach_queue(id)&outreach_queue=is.null&status=eq.scored&outreach_eligible=eq.true&email=not.is.null&ai_score=gte.{{ $('Config').first().json.min_score }}&order=ai_score.desc&limit={{ $('Config').first().json.batch_size }}",
         "options": {
           "timeout": 30000,
           "response": {
@@ -141,30 +153,95 @@
           "name": "Supabase account"
         }
       },
+      "executeOnce": true,
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000068",
-      "name": "Pick leads to draft",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "id": "b3a5e7c1-0000-4000-8000-000000000070",
+      "name": "Fetch DM leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         680,
         100
       ],
       "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/leads?select=*,outreach_queue(id)&outreach_queue=is.null&status=eq.scored&email=is.null&or=(x_handle.not.is.null,linkedin_url.not.is.null)&ai_score=gte.{{ $('Config').first().json.min_score }}&order=ai_score.desc&limit={{ $('Config').first().json.batch_size }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000071",
+      "name": "Fetch follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/leads?select=*,outreach_queue(id,subject,body,status,sequence_step,sent_at,channel)&status=eq.contacted&email=not.is.null&order=first_contacted_at.asc&limit=200",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000072",
+      "name": "Plan drafts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        100
+      ],
+      "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// WF-3 \"Pick leads to draft\" (Code node, Run Once for All Items).\n// Input: leads returned by Supabase, each with its outreach_queue rows embedded.\n// Keeps leads that have an email and have never had a draft (any status, so rejected\n// drafts are not rewritten). The database query already filters most of this; this is a safety net.\n\nconst cfg = $('Config').first().json\nconst MAX = Number(cfg.batch_size) || 10\nconst seen = new Set()\n\nconst picked = $input\n  .all()\n  .map(i => i.json)\n  .filter(l => l && l.id && l.email && !seen.has(l.email.toLowerCase()) && seen.add(l.email.toLowerCase()))\n  .filter(l => !Array.isArray(l.outreach_queue) || l.outreach_queue.length === 0)\n  .slice(0, MAX)\n\n// Pull the opening line WF-2 saved (\"Hook: …\") out of the reasoning text.\nreturn picked.map(l => {\n  const hook = String(l.ai_reasoning || '').match(/Hook:\\s*(.+)/i)?.[1]?.trim() || null\n  const firstName = String(l.name || '').trim().split(/\\s+/)[0] || null\n  const { outreach_queue, ...lead } = l\n  return { json: { ...lead, hook, first_name: firstName && /^[A-Za-z][\\w'-]*$/.test(firstName) ? firstName : null } }\n})\n"
+        "jsCode": "// WF-3 \"Plan drafts\" (Code node, Run Once for All Items).\n// Reads the three Supabase lookups and decides what to write this run, newest work first:\n//   1. follow-ups  – leads emailed N days ago who have not replied (step 2, then step 3)\n//   2. first email – qualified leads with an email that have never had a draft\n//   3. DM          – qualified leads with no email but an X or LinkedIn profile\n// Output: one item per draft with the Groq prompt ready (system + user) and the row fields to save.\n\nconst cfg = $('Config').first().json\nconst MAX = Number(cfg.batch_size) || 10\nconst FOLLOW_UP_DAYS = String(cfg.follow_up_days || '4,7').split(',').map(n => Number(n.trim())).filter(n => n > 0)\nconst MAX_STEP = 1 + FOLLOW_UP_DAYS.length\nconst DAY = 86400000\nconst PENDING = new Set(['pending_review', 'scheduled', 'approved'])\n\nconst rows = name => $(name).all().map(i => i.json).filter(l => l && l.id)\nconst hookOf = l => String(l.ai_reasoning || '').match(/Hook:\\s*(.+)/i)?.[1]?.trim() || null\nconst firstName = l => {\n  const f = String(l.name || '').trim().split(/\\s+/)[0] || ''\n  return /^[A-Za-z][\\w'-]*$/.test(f) ? f : null\n}\nconst facts = l => [\n  'Founder first name: ' + (firstName(l) || 'unknown'),\n  'Founder role: ' + (l.founder_role || 'unknown'),\n  'Company: ' + (l.company || '?'),\n  'Website: ' + (l.website || l.company_domain || '?'),\n  'Launched: ' + (l.launched_at || 'unknown') + ' (via ' + l.source + ')',\n  'Homepage has a video: ' + (l.has_video === null || l.has_video === undefined ? 'unknown' : l.has_video),\n  'Signals: ' + (Array.isArray(l.signals) ? l.signals.join(', ') : ''),\n  'Hook: ' + (hookOf(l) || 'none'),\n  'About: ' + String(l.bio || l.post_content || '').slice(0, 1200),\n  'Sender name: ' + cfg.sender_name,\n  'Portfolio link: ' + (cfg.portfolio_url || 'none'),\n]\n\nconst SERVICE = 'Bear Studios, a small studio that makes brand launch videos, promo videos and SaaS explainer videos for startups'\nconst RULES = 'Never invent facts, numbers, clients or results. Mention the portfolio link only if one is given. No markdown, no emojis, no exclamation marks.'\n\nconst SYS_FIRST =\n  `You write short cold emails for ${SERVICE}. Write to the founder of the company described. Plain text, 60-110 words. ` +\n  'Open with the provided hook or another specific detail about what they built or launched (never \"I hope this finds you well\"). ' +\n  'Then offer ONE fitting service: no video on their homepage -> a 60-90s explainer; just launched -> a launch/promo video for socials; otherwise whichever fits best. ' +\n  `${RULES} End with a soft, low-effort question (e.g. \"Worth a quick look at a few examples?\"), then sign off with the sender name on its own line. ` +\n  'Address the founder by first name if given, otherwise \"Hi there\". Subject: under 7 words, lowercase is fine, specific to them, no clickbait. ' +\n  'Output ONLY JSON: {\"subject\": \"...\", \"body\": \"...\"}'\n\nconst SYS_FOLLOW =\n  `You write a short follow-up to a cold email that got no reply, for ${SERVICE}. It is sent as a reply in the same thread, so do not repeat the pitch. ` +\n  'Plain text, 25-60 words. Step 2: a friendly nudge that adds ONE new, concrete idea for a video they could use (based on their product). ' +\n  'Step 3 (last): a polite close-the-loop note that says you will not follow up again and leaves the door open. ' +\n  `${RULES} Sign off with the sender name. Output ONLY JSON: {\"subject\": \"Re: <original subject>\", \"body\": \"...\"}`\n\nconst SYS_DM =\n  `You write a short direct message (X or LinkedIn) for ${SERVICE}, to the founder of the company described. Plain text, 25-60 words, casual and human. ` +\n  'Mention one specific thing about what they launched, then ask if they would be open to seeing a couple of launch/explainer video examples. ' +\n  `${RULES} No sign-off needed. Output ONLY JSON: {\"subject\": \"DM to <company>\", \"body\": \"...\"}`\n\nconst plan = []\nconst seenLead = new Set()\nconst seenEmail = new Set()\nconst add = item => {\n  if (plan.length >= MAX || seenLead.has(item.lead_id)) return\n  if (item.email && seenEmail.has(item.email.toLowerCase())) return\n  seenLead.add(item.lead_id)\n  if (item.email) seenEmail.add(item.email.toLowerCase())\n  plan.push(item)\n}\n\n// 1. Follow-ups\nconst now = Date.now()\nfor (const l of rows('Fetch follow-ups')) {\n  const queue = Array.isArray(l.outreach_queue) ? l.outreach_queue : []\n  if (!l.email || queue.some(q => PENDING.has(q.status))) continue\n  const sent = queue.filter(q => q.status === 'sent' && q.sent_at && (q.channel || 'email') === 'email')\n  if (!sent.length) continue\n  const last = sent.reduce((a, b) => ((b.sequence_step || 1) > (a.sequence_step || 1) ? b : a))\n  const step = (last.sequence_step || 1) + 1\n  if (step > MAX_STEP) continue\n  const waitDays = FOLLOW_UP_DAYS[step - 2]\n  if ((now - Date.parse(last.sent_at)) / DAY < waitDays) continue\n  const first = sent.find(q => (q.sequence_step || 1) === 1) || last\n  add({\n    kind: 'followup', lead_id: l.id, email: l.email, channel: 'email', sequence_step: step,\n    system: SYS_FOLLOW,\n    user: [\n      `This is follow-up step ${step} of ${MAX_STEP}.`,\n      `Original subject: ${first.subject}`,\n      `Original email:\\n${String(first.body || '').slice(0, 1500)}`,\n      ...facts(l),\n    ].join('\\n'),\n    fallback_subject: /^re:/i.test(first.subject || '') ? first.subject : `Re: ${first.subject}`,\n  })\n}\n\n// 2. First emails\nfor (const l of rows('Fetch leads to draft')) {\n  if (!l.email || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue\n  add({ kind: 'first', lead_id: l.id, email: l.email, channel: 'email', sequence_step: 1, system: SYS_FIRST, user: facts(l).join('\\n') })\n}\n\n// 3. DMs for leads without an email\nif (cfg.draft_dms !== false && String(cfg.draft_dms) !== 'false') {\n  for (const l of rows('Fetch DM leads')) {\n    if (l.email || !(l.x_handle || l.linkedin_url) || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue\n    add({ kind: 'dm', lead_id: l.id, email: null, channel: 'dm', sequence_step: 1, system: SYS_DM, user: facts(l).join('\\n') })\n  }\n}\n\nreturn plan.map(json => ({ json }))\n"
       },
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000070",
+      "id": "b3a5e7c1-0000-4000-8000-000000000074",
       "name": "Anything to draft?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        900,
+        1340,
         100
       ],
       "parameters": {
@@ -176,8 +253,8 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000069",
-              "leftValue": "={{ !!$json.id }}",
+              "id": "1f0c0d00-0000-4000-8000-000000000073",
+              "leftValue": "={{ !!$json.lead_id }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -192,12 +269,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000071",
-      "name": "Groq: write email",
+      "id": "b3a5e7c1-0000-4000-8000-000000000075",
+      "name": "Groq: write message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1120,
+        1560,
         0
       ],
       "parameters": {
@@ -222,7 +299,7 @@
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.6, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: \"You write short cold emails for Bear Studios, a small studio that makes brand launch videos, promo videos and SaaS explainer videos for startups. Write to the founder of the company described. Rules: plain text, 60-110 words, no markdown, no emojis, no exclamation marks. Open with the provided hook or another specific detail about what they built or launched (never \\\"I hope this finds you well\\\"). Then offer ONE fitting service: no video on their homepage -> a 60-90s explainer; just launched -> a launch/promo video for socials; otherwise whichever fits best. Never invent facts, numbers, clients or results. Mention the portfolio link only if one is given. End with a soft, low-effort question (e.g. \\\"Worth a quick look at a few examples?\\\"), then sign off with the sender name on its own line. Address the founder by first name if given, otherwise \\\"Hi there\\\". Subject: under 7 words, lowercase is fine, specific to them, no clickbait. Output ONLY JSON: {\\\"subject\\\": \\\"...\\\", \\\"body\\\": \\\"...\\\"}\" }, { role: 'user', content: ['Founder first name: ' + ($json.first_name || 'unknown'), 'Founder role: ' + ($json.founder_role || 'unknown'), 'Company: ' + ($json.company || '?'), 'Website: ' + ($json.website || $json.company_domain || '?'), 'Launched: ' + ($json.launched_at || 'unknown') + ' (via ' + $json.source + ')', 'Homepage has a video: ' + ($json.has_video === null || $json.has_video === undefined ? 'unknown' : $json.has_video), 'Signals: ' + (Array.isArray($json.signals) ? $json.signals.join(', ') : ''), 'Hook: ' + ($json.hook || 'none'), 'About: ' + String($json.bio || $json.post_content || '').slice(0, 1200), 'Sender name: ' + $('Config').first().json.sender_name, 'Portfolio link: ' + ($('Config').first().json.portfolio_url || 'none')].join('\\n') } ] }) }}"
+        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.6, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: $json.system }, { role: 'user', content: $json.user } ] }) }}"
       },
       "credentials": {
         "httpHeaderAuth": {
@@ -230,29 +307,32 @@
           "name": "Groq API key"
         }
       },
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000072",
+      "id": "b3a5e7c1-0000-4000-8000-000000000076",
       "name": "Build drafts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1340,
+        1780,
         0
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// WF-3 \"Build drafts\" (Code node, Run Once for All Items).\n// Input: one Groq response per picked lead, in the same order.\n// Output: ONE item { rows: [...outreach_queue rows], drafted, failed: [...] }.\n\nconst leads = $('Pick leads to draft').all().map(i => i.json)\nconst rows = []\nconst failed = []\n\n$input.all().forEach((item, i) => {\n  const lead = leads[i]\n  if (!lead) return\n  const res = item.json || {}\n  try {\n    const email = JSON.parse(res.choices[0].message.content)\n    const subject = String(email.subject || '').replace(/\\s+/g, ' ').trim().slice(0, 120)\n    const body = String(email.body || '').replace(/\\r\\n/g, '\\n').trim()\n    if (!subject || body.length < 40) throw new Error('empty subject or body')\n    rows.push({ lead_id: lead.id, subject, body, status: 'pending_review', sequence_step: 1 })\n  } catch (e) {\n    const reason = res.error ? String(res.error.message || res.error) : String(e.message || e)\n    failed.push({ lead: lead.id, email: lead.email, message: `Draft failed: ${reason.slice(0, 200)}` })\n  }\n})\n\nreturn [{ json: { rows, drafted: rows.length, failed } }]\n"
+        "jsCode": "// WF-3 \"Build drafts\" (Code node, Run Once for All Items).\n// Input: one Groq response per planned draft, in the same order as \"Plan drafts\".\n// Output: ONE item { rows: [...outreach_queue rows], drafted, failed: [...] }.\n\nconst plan = $('Plan drafts').all().map(i => i.json)\nconst rows = []\nconst failed = []\n\n$input.all().forEach((item, i) => {\n  const p = plan[i]\n  if (!p) return\n  const res = item.json || {}\n  try {\n    const out = JSON.parse(res.choices[0].message.content)\n    let subject = String(out.subject || '').replace(/\\s+/g, ' ').trim().slice(0, 120)\n    const body = String(out.body || '').replace(/\\r\\n/g, '\\n').trim()\n    // Follow-ups go out as replies in the original Gmail thread, so keep the original subject.\n    if (p.kind === 'followup') subject = p.fallback_subject\n    if (!subject || body.length < 40) throw new Error('empty subject or body')\n    rows.push({ lead_id: p.lead_id, subject, body, status: 'pending_review', sequence_step: p.sequence_step, channel: p.channel })\n  } catch (e) {\n    const reason = res.error ? String(res.error.message || res.error) : String(e.message || e)\n    failed.push({ lead: p.lead_id, kind: p.kind, message: `Draft failed: ${reason.slice(0, 200)}` })\n  }\n})\n\nreturn [{ json: { rows, drafted: rows.length, failed } }]\n"
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000074",
+      "id": "b3a5e7c1-0000-4000-8000-000000000078",
       "name": "Any drafts?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1560,
+        2000,
         0
       ],
       "parameters": {
@@ -264,7 +344,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000073",
+              "id": "1f0c0d00-0000-4000-8000-000000000077",
               "leftValue": "={{ $json.rows.length > 0 }}",
               "rightValue": "",
               "operator": {
@@ -280,12 +360,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000075",
+      "id": "b3a5e7c1-0000-4000-8000-000000000079",
       "name": "Queue for review",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1780,
+        2220,
         -100
       ],
       "parameters": {
@@ -324,12 +404,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000076",
+      "id": "b3a5e7c1-0000-4000-8000-000000000080",
       "name": "Run summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2000,
+        2440,
         100
       ],
       "parameters": {
@@ -338,12 +418,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000077",
+      "id": "b3a5e7c1-0000-4000-8000-000000000081",
       "name": "Write run log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2220,
+        2660,
         100
       ],
       "parameters": {
@@ -419,14 +499,36 @@
       "main": [
         [
           {
-            "node": "Pick leads to draft",
+            "node": "Fetch DM leads",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Pick leads to draft": {
+    "Fetch DM leads": {
+      "main": [
+        [
+          {
+            "node": "Fetch follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Plan drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan drafts": {
       "main": [
         [
           {
@@ -441,7 +543,7 @@
       "main": [
         [
           {
-            "node": "Groq: write email",
+            "node": "Groq: write message",
             "type": "main",
             "index": 0
           }
@@ -455,7 +557,7 @@
         ]
       ]
     },
-    "Groq: write email": {
+    "Groq: write message": {
       "main": [
         [
           {
