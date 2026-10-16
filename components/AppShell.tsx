@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Role } from '@/lib/env'
+import ActivityMenu from './ActivityMenu'
 import { ToastProvider } from './Toast'
 import {
   IconBolt, IconChart, IconGrid, IconKanban, IconLogout, IconMail, IconMenu, IconPanel, IconSettings, IconTarget, IconUsers,
@@ -221,6 +222,7 @@ export default function AppShell({ email, role, children }: { email: string; rol
               <span className="crumb-root">Bear Studios <span className="subtle">/</span> </span><strong>{current?.label ?? 'Overview'}</strong>
             </div>
             <div className="topbar-spacer" />
+            {isOwner && <ActivityMenu />}
             {isOwner && (
               <Link href="/settings?tab=integrations" className="health-pill" title={health.detail ?? health.label}>
                 <span className={`dot ${health.state === 'loading' ? '' : health.state}`} />

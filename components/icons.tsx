@@ -113,3 +113,6 @@ export const IconSparkle = (p: IconProps) => (
 export const IconChart = (p: IconProps) => (
   <svg {...base(p)}><path d="M3 3v18h18" /><path d="M7 15l4-4 3 3 6-6" /></svg>
 )
+export const IconActivity = (p: IconProps) => (
+  <svg {...base(p)}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+)

@@ -9,6 +9,7 @@ import { IconBolt, IconCheck, IconExternal, IconMail, IconMessage, IconRefresh, 
 import { formatDateTime, timeAgo } from '@/lib/format'
 import { MIN_SCORE, scoringFailed } from '@/lib/outreach'
 import { triggerWorkflow } from '@/lib/workflows'
+import { markStarted } from '@/lib/activity'
 
 type Tab = 'pending_review' | 'scheduled' | 'approved' | 'sent' | 'rejected'
 type QueueItem = {
@@ -28,7 +29,7 @@ type DraftRun =
 type RunLog = { status: string; leads_scored: number | null; errors: { message?: string }[] | null; created_at: string }
 
 type Pipeline = {
-  total: number; failed: number; failReason: string | null; low: number; good: number; drafted: number
+  waiting: number; total: number; failed: number; failReason: string | null; low: number; good: number; drafted: number
   readyEmail: number; readyDm: number; noContact: number; other: number
 }
 
@@ -126,7 +127,8 @@ function OutreachInner() {
       if (!data || data.length < 1000) break
     }
     const reasons = new Map<string, number>()
-    const p: Pipeline = { total: rows.length, failed: 0, failReason: null, low: 0, good: 0, drafted: 0, readyEmail: 0, readyDm: 0, noContact: 0, other: 0 }
+    const { count: waiting } = await supabase.from('raw_leads').select('id', { count: 'exact', head: true }).eq('status', 'raw')
+    const p: Pipeline = { waiting: waiting ?? 0, total: rows.length, failed: 0, failReason: null, low: 0, good: 0, drafted: 0, readyEmail: 0, readyDm: 0, noContact: 0, other: 0 }
     for (const l of rows) {
       if (scoringFailed(l.ai_reasoning)) {
         p.failed++
@@ -326,7 +328,10 @@ function OutreachInner() {
     const data = await post('/api/leads/rescore', 'rescore')
     if (!data) return
     if (data.warning) toast.error(data.warning)
-    else toast.success(data.count ? `${data.count} leads sent back to WF-2 for scoring. Check back in a few minutes.` : 'No failed scores to retry.')
+    else if (data.count) {
+      markStarted('WF-2-Processor')
+      toast.success(`${data.count} leads sent back to WF-2. Follow progress under Activity (top right).`)
+    } else toast.success('No failed scores to retry.')
     loadPipeline()
   }
 
@@ -390,6 +395,11 @@ function OutreachInner() {
         ) : (
           <>
             <div className="pipeline-stats">
+              {pipeline.waiting > 0 && (
+                <span className="row" style={{ gap: 6, display: 'inline-flex' }}>
+                  <Spinner /> <strong>{pipeline.waiting}</strong> <span className="muted">waiting to be scored by WF-2</span>
+                </span>
+              )}
               <span><strong>{pipeline.total}</strong> <span className="muted">leads</span></span>
               <span><strong>{pipeline.readyEmail}</strong> <span className="muted">ready to email</span></span>
               <span><strong>{pipeline.readyDm}</strong> <span className="muted">ready for a DM</span></span>
@@ -414,13 +424,21 @@ function OutreachInner() {
                   }
                 >
                   {pipeline.failReason && <div className="mono" style={{ fontSize: 12.5, margin: '2px 0 4px' }}>Groq said: {pipeline.failReason}</div>}
-                  Import the latest WF-2 first (it uses a current Groq model and retries when Groq is busy), then click Re-score.
+                  {/invalid api key|authorization|401/i.test(pipeline.failReason ?? '')
+                    ? 'Groq rejected your API key. In n8n → Credentials → “Groq API key”: Name must be Authorization and Value must be “Bearer ” followed by a key from console.groq.com/keys. Save, then click Re-score.'
+                    : /decommissioned|model/i.test(pipeline.failReason ?? '')
+                      ? 'That model was retired. Import the latest WF-2 and WF-3 (they use openai/gpt-oss-120b), then click Re-score.'
+                      : /rate limit|too many|busy/i.test(pipeline.failReason ?? '')
+                        ? 'Groq was busy. Wait a minute, then click Re-score (the latest WF-2 also retries automatically).'
+                        : 'Fix the problem above in n8n, then click Re-score.'}
                 </Alert>
               </div>
             )}
             {readyTotal === 0 && pipeline.failed === 0 && (
               <p className="hint pipeline-note">
-                {pipeline.total === 0
+                {pipeline.total === 0 && pipeline.waiting > 0
+                  ? `WF-2 is working through ${pipeline.waiting} leads (25 per run). Scored leads appear here as they finish — watch Activity in the top bar.`
+                  : pipeline.total === 0
                   ? 'No leads yet — run Scrape leads, then Score & enrich on the Workflows page.'
                   : pipeline.good === 0
                     ? `Nothing to draft: none of your leads scored ${MIN_SCORE}+. Run the scraper for fresh leads, or lower min_score in the WF-2 and WF-3 Config nodes.`
