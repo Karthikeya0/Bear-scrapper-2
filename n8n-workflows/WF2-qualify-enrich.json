@@ -326,50 +326,17 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// WF-2 \"Pick founder email\" (Code node, Run Once for Each Item).\n// Input: Hunter domain-search response for one qualified lead.\n// Prefers founders / CEOs; otherwise the most confident personal address.\n\nconst lead = $('Qualified?').item.json\nconst res = $json || {}\nconst emails = (res.data && res.data.emails) || []\n\nconst score = e => {\n  const pos = `${e.position || ''} ${e.seniority || ''}`.toLowerCase()\n  let s = Number(e.confidence) || 0\n  if (/founder|co-?founder|ceo|owner|chief executive/.test(pos)) s += 200\n  else if (/executive|cto|coo|cmo|head|director|vp/.test(pos)) s += 100\n  if (e.type === 'generic') s -= 150\n  return s\n}\nconst best = emails\n  .filter(e => e && e.value && (e.verification?.status ?? 'valid') !== 'invalid')\n  .sort((a, b) => score(b) - score(a))[0]\n\nconst fullName = best ? [best.first_name, best.last_name].filter(Boolean).join(' ') : ''\nreturn {\n  json: {\n    ...lead,\n    email: best ? best.value : null,\n    name: fullName || lead.name || null,\n    founder_role: best?.position || null,\n    hunter_error: res.error ? String(res.error.message || res.error).slice(0, 200) : null,\n    disqualify_reason: best ? null : res.error ? `hunter_error (${String(res.error.message || res.error).slice(0, 80)})` : 'no_email_found',\n  },\n}\n"
+        "jsCode": "// WF-2 \"Pick founder email\" (Code node, Run Once for Each Item).\n// Input: Hunter domain-search response for one qualified lead.\n// Prefers founders / CEOs; otherwise the most confident personal address.\n\nconst lead = $('Qualified?').item.json\nconst res = $json || {}\nconst emails = (res.data && res.data.emails) || []\n\nconst score = e => {\n  const pos = `${e.position || ''} ${e.seniority || ''}`.toLowerCase()\n  let s = Number(e.confidence) || 0\n  if (/founder|co-?founder|ceo|owner|chief executive/.test(pos)) s += 200\n  else if (/executive|cto|coo|cmo|head|director|vp/.test(pos)) s += 100\n  if (e.type === 'generic') s -= 150\n  return s\n}\nconst best = emails\n  .filter(e => e && e.value && (e.verification?.status ?? 'valid') !== 'invalid')\n  .sort((a, b) => score(b) - score(a))[0]\n\nconst fullName = best ? [best.first_name, best.last_name].filter(Boolean).join(' ') : ''\nreturn {\n  json: {\n    ...lead,\n    email: best ? best.value : null,\n    name: fullName || lead.name || null,\n    founder_role: best?.position || null,\n    hunter_error: res.error ? String(res.error.message || res.error).slice(0, 200) : null,\n  },\n}\n"
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000048",
-      "name": "Has email?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        1560,
-        0
-      ],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose"
-          },
-          "conditions": [
-            {
-              "id": "1f0c0d00-0000-4000-8000-000000000047",
-              "leftValue": "={{ !!$json.email }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      }
-    },
-    {
-      "id": "b3a5e7c1-0000-4000-8000-000000000049",
+      "id": "b3a5e7c1-0000-4000-8000-000000000047",
       "name": "Groq: score lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1780,
-        -100
+        1560,
+        0
       ],
       "parameters": {
         "method": "POST",
@@ -379,6 +346,12 @@
           "response": {
             "response": {
               "responseFormat": "json"
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 2500
             }
           }
         },
@@ -398,27 +371,27 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000050",
+      "id": "b3a5e7c1-0000-4000-8000-000000000048",
       "name": "Build lead row",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2000,
-        -100
+        1780,
+        0
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// WF-2 \"Build lead row\" (Code node, Run Once for Each Item).\n// Input: Groq chat-completion response for one lead with an email.\n// Output: exactly the columns of public.leads (extra keys would make the insert fail).\n\nconst lead = $('Has email?').item.json\nconst cfg = $('Config').first().json\nconst MIN_SCORE = Number(cfg.min_score) || 60\n\nlet scoring = {}\ntry {\n  scoring = JSON.parse($json.choices[0].message.content)\n} catch {\n  scoring = { score: null, reasoning: $json.error ? `Groq error: ${String($json.error.message || $json.error).slice(0, 200)}` : 'Could not parse AI score', signals: [], hook: null }\n}\nconst aiScore = Number.isFinite(Number(scoring.score)) ? Math.max(0, Math.min(100, Math.round(Number(scoring.score)))) : 0\n\nreturn {\n  json: {\n    raw_lead_id: lead.id,\n    name: lead.name,\n    email: lead.email,\n    company: lead.company,\n    company_domain: lead.company_domain,\n    website: lead.website,\n    source: lead.source,\n    source_id: lead.source_id,\n    profile_url: lead.profile_url,\n    bio: lead.bio,\n    post_content: lead.post_content,\n    x_handle: lead.x_handle,\n    linkedin_url: lead.linkedin_url,\n    launched_at: lead.launched_at,\n    team_size: lead.team_size,\n    domain_created_at: lead.domain_created_at,\n    has_video: lead.has_video,\n    signals: lead.signals || [],\n    founder_role: lead.founder_role,\n    ai_score: aiScore,\n    ai_reasoning: [scoring.reasoning, scoring.hook ? `Hook: ${scoring.hook}` : null].filter(Boolean).join('\\n') || null,\n    ai_signals: Array.isArray(scoring.signals) ? scoring.signals.map(String).slice(0, 8) : [],\n    status: 'scored',\n    // WF-3 only drafts emails for eligible leads; low scores stay visible but are not emailed.\n    outreach_eligible: aiScore >= MIN_SCORE,\n  },\n}\n"
+        "jsCode": "// WF-2 \"Build lead row\" (Code node, Run Once for Each Item).\n// Input: Groq chat-completion response for one qualified lead (with or without an email).\n// Output: exactly the columns of public.leads (extra keys would make the insert fail).\n\nconst lead = $('Pick founder email').item.json\nconst cfg = $('Config').first().json\nconst MIN_SCORE = Number(cfg.min_score) || 60\n\nlet scoring = {}\ntry {\n  scoring = JSON.parse($json.choices[0].message.content)\n} catch {\n  scoring = { score: null, reasoning: $json.error ? `Groq error: ${String($json.error.message || $json.error).slice(0, 200)}` : 'Could not parse AI score', signals: [], hook: null }\n}\nconst aiScore = Number.isFinite(Number(scoring.score)) ? Math.max(0, Math.min(100, Math.round(Number(scoring.score)))) : 0\n\nreturn {\n  json: {\n    raw_lead_id: lead.id,\n    name: lead.name,\n    email: lead.email,\n    company: lead.company,\n    company_domain: lead.company_domain,\n    website: lead.website,\n    source: lead.source,\n    source_id: lead.source_id,\n    profile_url: lead.profile_url,\n    bio: lead.bio,\n    post_content: lead.post_content,\n    x_handle: lead.x_handle,\n    linkedin_url: lead.linkedin_url,\n    launched_at: lead.launched_at,\n    team_size: lead.team_size,\n    domain_created_at: lead.domain_created_at,\n    has_video: lead.has_video,\n    signals: lead.signals || [],\n    founder_role: lead.founder_role,\n    ai_score: aiScore,\n    ai_reasoning: [scoring.reasoning, scoring.hook ? `Hook: ${scoring.hook}` : null].filter(Boolean).join('\\n') || null,\n    ai_signals: Array.isArray(scoring.signals) ? scoring.signals.map(String).slice(0, 8) : [],\n    status: 'scored',\n    // WF-3 only drafts emails for eligible leads; low scores and leads without an email stay visible but are not emailed.\n    outreach_eligible: aiScore >= MIN_SCORE && !!lead.email,\n  },\n}\n"
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000051",
+      "id": "b3a5e7c1-0000-4000-8000-000000000049",
       "name": "Save lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2220,
-        -100
+        2000,
+        0
       ],
       "parameters": {
         "method": "POST",
@@ -456,13 +429,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000052",
+      "id": "b3a5e7c1-0000-4000-8000-000000000050",
       "name": "Mark processed",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2440,
-        -100
+        2220,
+        0
       ],
       "parameters": {
         "method": "PATCH",
@@ -499,7 +472,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000053",
+      "id": "b3a5e7c1-0000-4000-8000-000000000051",
       "name": "Save disqualified",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -647,25 +620,7 @@
       "main": [
         [
           {
-            "node": "Has email?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Has email?": {
-      "main": [
-        [
-          {
             "node": "Groq: score lead",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Save disqualified",
             "type": "main",
             "index": 0
           }

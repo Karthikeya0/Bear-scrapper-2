@@ -1,8 +1,8 @@
 // WF-2 "Build lead row" (Code node, Run Once for Each Item).
-// Input: Groq chat-completion response for one lead with an email.
+// Input: Groq chat-completion response for one qualified lead (with or without an email).
 // Output: exactly the columns of public.leads (extra keys would make the insert fail).
 
-const lead = $('Has email?').item.json
+const lead = $('Pick founder email').item.json
 const cfg = $('Config').first().json
 const MIN_SCORE = Number(cfg.min_score) || 60
 
@@ -39,7 +39,7 @@ return {
     ai_reasoning: [scoring.reasoning, scoring.hook ? `Hook: ${scoring.hook}` : null].filter(Boolean).join('\n') || null,
     ai_signals: Array.isArray(scoring.signals) ? scoring.signals.map(String).slice(0, 8) : [],
     status: 'scored',
-    // WF-3 only drafts emails for eligible leads; low scores stay visible but are not emailed.
-    outreach_eligible: aiScore >= MIN_SCORE,
+    // WF-3 only drafts emails for eligible leads; low scores and leads without an email stay visible but are not emailed.
+    outreach_eligible: aiScore >= MIN_SCORE && !!lead.email,
   },
 }

@@ -2,7 +2,7 @@
   "name": "WF-3: Draft Outreach",
   "nodes": [
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000054",
+      "id": "b3a5e7c1-0000-4000-8000-000000000052",
       "name": "Every 3 hours",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000056",
+      "id": "b3a5e7c1-0000-4000-8000-000000000054",
       "name": "Dashboard: Draft outreach",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -37,7 +37,7 @@
         "responseMode": "onReceived",
         "options": {}
       },
-      "webhookId": "7e1f0b2a-0000-4000-8000-000000000055",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000053",
       "credentials": {
         "httpHeaderAuth": {
           "id": "bearDashboardSecret",
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000065",
+      "id": "b3a5e7c1-0000-4000-8000-000000000063",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -59,49 +59,49 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c0f19a00-0000-4000-8000-000000000057",
+              "id": "c0f19a00-0000-4000-8000-000000000055",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT-REF.supabase.co",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000058",
+              "id": "c0f19a00-0000-4000-8000-000000000056",
               "name": "batch_size",
               "value": 10,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000059",
+              "id": "c0f19a00-0000-4000-8000-000000000057",
               "name": "min_score",
               "value": 60,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000060",
+              "id": "c0f19a00-0000-4000-8000-000000000058",
               "name": "sender_name",
               "value": "Bear Studios",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000061",
+              "id": "c0f19a00-0000-4000-8000-000000000059",
               "name": "portfolio_url",
               "value": "",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000062",
+              "id": "c0f19a00-0000-4000-8000-000000000060",
               "name": "groq_url",
               "value": "https://api.groq.com/openai/v1/chat/completions",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000063",
+              "id": "c0f19a00-0000-4000-8000-000000000061",
               "name": "groq_model",
               "value": "llama-3.3-70b-versatile",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000064",
+              "id": "c0f19a00-0000-4000-8000-000000000062",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -113,7 +113,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000066",
+      "id": "b3a5e7c1-0000-4000-8000-000000000064",
       "name": "Fetch leads to draft",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -144,7 +144,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000067",
+      "id": "b3a5e7c1-0000-4000-8000-000000000065",
       "name": "Pick leads to draft",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -159,7 +159,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000069",
+      "id": "b3a5e7c1-0000-4000-8000-000000000067",
       "name": "Anything to draft?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -176,7 +176,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000068",
+              "id": "1f0c0d00-0000-4000-8000-000000000066",
               "leftValue": "={{ !!$json.id }}",
               "rightValue": "",
               "operator": {
@@ -192,7 +192,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000070",
+      "id": "b3a5e7c1-0000-4000-8000-000000000068",
       "name": "Groq: write email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -233,7 +233,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000071",
+      "id": "b3a5e7c1-0000-4000-8000-000000000069",
       "name": "Build drafts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -247,7 +247,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000073",
+      "id": "b3a5e7c1-0000-4000-8000-000000000071",
       "name": "Any drafts?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -264,7 +264,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000072",
+              "id": "1f0c0d00-0000-4000-8000-000000000070",
               "leftValue": "={{ $json.rows.length > 0 }}",
               "rightValue": "",
               "operator": {
@@ -280,7 +280,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000074",
+      "id": "b3a5e7c1-0000-4000-8000-000000000072",
       "name": "Queue for review",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -324,7 +324,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000075",
+      "id": "b3a5e7c1-0000-4000-8000-000000000073",
       "name": "Run summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -338,7 +338,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000076",
+      "id": "b3a5e7c1-0000-4000-8000-000000000074",
       "name": "Write run log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

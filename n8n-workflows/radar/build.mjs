@@ -229,18 +229,18 @@ function buildWf2() {
       query: [['domain', '={{ $json.company_domain }}'], ['limit', '10']],
     }, CONTINUE),
     code('Pick founder email', [1340, 0], 'wf2-pick-email.js', 'runOnceForEachItem'),
-    ifTrue('Has email?', [1560, 0], '={{ !!$json.email }}'),
-    http('Groq: score lead', [1780, -100], {
+    http('Groq: score lead', [1560, 0], {
       method: 'POST',
       url: "={{ $('Config').first().json.groq_url }}",
       auth: { header: CRED.groq },
+      batching: { batchSize: 1, batchInterval: 2500 },
       body:
         "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.2, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: " +
         JSON.stringify(GROQ_SYSTEM) +
         " }, { role: 'user', content: ['Company: ' + ($json.company || '?'), 'Website: ' + $json.website, 'Source: ' + $json.source, 'Launched: ' + ($json.launched_at || 'unknown'), 'Team size: ' + ($json.team_size || 'unknown'), 'Homepage has a video: ' + ($json.has_video === null ? 'unknown' : $json.has_video), 'Signals: ' + ($json.signals || []).join(', '), 'Founder: ' + ($json.name || '?') + ($json.founder_role ? ' (' + $json.founder_role + ')' : ''), 'About: ' + String($json.post_content || '').slice(0, 1500)].join('\\n') } ] }) }}",
     }, CONTINUE),
-    code('Build lead row', [2000, -100], 'wf2-build-lead.js', 'runOnceForEachItem'),
-    http('Save lead', [2220, -100], {
+    code('Build lead row', [1780, 0], 'wf2-build-lead.js', 'runOnceForEachItem'),
+    http('Save lead', [2000, 0], {
       method: 'POST',
       url: `=${SB}/rest/v1/leads?on_conflict=raw_lead_id`,
       auth: { supabase: true },
@@ -248,7 +248,7 @@ function buildWf2() {
       headers: [['Prefer', 'resolution=ignore-duplicates,return=minimal']],
       body: '={{ JSON.stringify($json) }}',
     }, { alwaysOutputData: true }),
-    http('Mark processed', [2440, -100], {
+    http('Mark processed', [2220, 0], {
       method: 'PATCH',
       url: `=${SB}/rest/v1/raw_leads?id=eq.{{ $('Build lead row').item.json.raw_lead_id }}`,
       auth: { supabase: true },
@@ -278,9 +278,9 @@ function buildWf2() {
   link(c, 'Qualified?', 'Hunter: founder email', 0)
   link(c, 'Qualified?', 'Save disqualified', 1)
   link(c, 'Hunter: founder email', 'Pick founder email')
-  link(c, 'Pick founder email', 'Has email?')
-  link(c, 'Has email?', 'Groq: score lead', 0)
-  link(c, 'Has email?', 'Save disqualified', 1)
+  // Every qualified lead is scored and saved, even when Hunter finds no email (or its quota is used up):
+  // it still shows on the Leads page with its website / X / LinkedIn; WF-3 only drafts for leads with an email.
+  link(c, 'Pick founder email', 'Groq: score lead')
   link(c, 'Groq: score lead', 'Build lead row')
   link(c, 'Build lead row', 'Save lead')
   link(c, 'Save lead', 'Mark processed')

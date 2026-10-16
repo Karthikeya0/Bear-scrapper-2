@@ -6,7 +6,7 @@ finds the founder's email, and queues a personalised pitch for your approval in 
 | Workflow | Replaces | What it does |
 |---|---|---|
 | `WF1-lead-radar-sources.json` | WF-1 (Reddit scraper) | Every 6h or on "Scrape leads": Hacker News *Show HN*, YC (new, ≤3 people), BetaList, Product Hunt → `raw_leads` (duplicates skipped) |
-| `WF2-qualify-enrich.json` | WF-2 (processor) | Hourly or on "Score & enrich": free checks first (team size, launch date, domain age, homepage video, X/LinkedIn), then Hunter (founder email) **only for qualified leads**, then Groq score → `leads` |
+| `WF2-qualify-enrich.json` | WF-2 (processor) | Hourly or on "Score & enrich": free checks first (team size, launch date, domain age, homepage video, X/LinkedIn), then Hunter (founder email) **only for qualified leads**, then Groq score → `leads`. Every qualified lead is saved, even when Hunter finds no email (it shows with its website / X / LinkedIn; only leads with an email get drafted). |
 | `WF3-draft-outreach.json` | WF-3 (outreach generator) | Every 3h or on "Draft outreach": Groq writes one short email per qualified lead (score ≥ 60, has an email, never drafted) → `outreach_queue` as **pending review**. Nothing is sent. |
 | `WF3b-send-approved.json` | WF-3b (send approved) | When you click **Approve & send** in the dashboard: sends that one email with Gmail, marks it **sent**, marks the lead **contacted**, saves it to `outreach_history`. If Gmail fails the email goes back to the review queue. Same webhook (`approve-and-send`) and payload as before. |
 
@@ -40,6 +40,8 @@ For each file in this folder — `WF1-lead-radar-sources.json`, then `WF2-qualif
 3. Any node with a ⚠️ warning → open it → pick the matching credential from Step 3 → close.
    - WF-1: *Dashboard: Scrape leads*, *Product Hunt: launches*, *Save new raw leads*, *Write run log*
    - WF-2: *Dashboard: Score & enrich*, *Fetch raw leads*, *Hunter: founder email*, *Groq: score lead*, *Save lead*, *Mark processed*, *Save disqualified*, *Write run log*
+
+> **Hunter free plan = about 25 searches a month.** When it runs out, leads are still saved, just without an email.
 4. **Save**, then **Publish / Activate**.
 
 ✅ Check: dashboard → **Settings → Integrations → Re-check** → `wf1-scraper` and `wf2-processor` show **Ready**.

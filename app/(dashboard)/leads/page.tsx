@@ -15,7 +15,7 @@ type Lead = {
 }
 
 const STATUSES = ['scored', 'contacted', 'replied', 'converted', 'dead', 'bounced', 'unsubscribed', 'disqualified']
-const SOURCES = ['reddit', 'producthunt', 'yc', 'twitter', 'linkedin']
+const SOURCES = ['hackernews', 'producthunt', 'yc', 'betalist']
 const PAGE_SIZE = 50
 const FUNNEL = ['scored', 'contacted', 'replied', 'converted'] as const
 /** Leads we have already emailed; shaded green in the table and the Excel export. */

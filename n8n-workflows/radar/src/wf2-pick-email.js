@@ -26,6 +26,5 @@ return {
     name: fullName || lead.name || null,
     founder_role: best?.position || null,
     hunter_error: res.error ? String(res.error.message || res.error).slice(0, 200) : null,
-    disqualify_reason: best ? null : res.error ? `hunter_error (${String(res.error.message || res.error).slice(0, 80)})` : 'no_email_found',
   },
 }
