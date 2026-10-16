@@ -397,7 +397,7 @@ function OutreachInner() {
             <div className="pipeline-stats">
               {pipeline.waiting > 0 && (
                 <span className="row" style={{ gap: 6, display: 'inline-flex' }}>
-                  <Spinner /> <strong>{pipeline.waiting}</strong> <span className="muted">waiting to be scored by WF-2</span>
+                  <Spinner /> <strong>{pipeline.waiting}</strong> <span className="muted">new leads queued for scoring (WF-2 does a batch each run)</span>
                 </span>
               )}
               <span><strong>{pipeline.total}</strong> <span className="muted">leads</span></span>
@@ -408,7 +408,7 @@ function OutreachInner() {
               {pipeline.failed > 0 && <span><strong style={{ color: 'var(--red-text)' }}>{pipeline.failed}</strong> <span className="muted">scoring failed</span></span>}
               {pipeline.noContact > 0 && (
                 <span>
-                  <strong>{pipeline.noContact}</strong> <span className="muted">good leads with no contact</span> · <Link className="link" href="/leads?needs=email">add emails</Link>
+                  <strong>{pipeline.noContact}</strong> <span className="muted">skipped — no email, X or LinkedIn found</span> · <Link className="link" href="/leads?needs=email">add one (optional)</Link>
                 </span>
               )}
             </div>
