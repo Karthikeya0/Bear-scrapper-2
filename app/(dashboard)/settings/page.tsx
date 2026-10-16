@@ -41,9 +41,9 @@ function Row({ label, hint, htmlFor, children }: { label: string; hint?: ReactNo
   )
 }
 
-function Section({ title, desc, children }: { title: string; desc: string; children: ReactNode }) {
+function Section({ title, desc, wide, children }: { title: string; desc: string; wide?: boolean; children: ReactNode }) {
   return (
-    <section className="card set-section">
+    <section className={`card set-section${wide ? ' wide' : ''}`}>
       <div className="set-section-head">
         <h2 className="card-title">{title}</h2>
         <p className="card-desc">{desc}</p>
@@ -145,17 +145,17 @@ export default function SettingsPage() {
       ) : (
         <div className="set-page">
           <Section title="Who gets an email" desc="Used by Score & enrich and Draft outreach.">
-            <Row label="Minimum AI score" htmlFor="min_score" hint="Only leads scoring this or higher are drafted. 60 is a good start. Raising it applies right away; lowering it applies to leads scored from now on.">
+            <Row label="Minimum AI score" htmlFor="min_score" hint="Leads below this are not drafted. 60 is a good start. Lowering it only affects leads scored from now on.">
               <div className="row" style={{ gap: 12, width: '100%' }}>
                 <input id="min_score" type="range" min={30} max={95} step={5} value={form.min_score} onChange={e => patch({ min_score: Number(e.target.value) })} className="range" />
                 <span className="score high set-score">{form.min_score}</span>
               </div>
             </Row>
-            <Row label="Drafts per run" htmlFor="drafts" hint="How many messages Groq writes each time you click Draft new emails (and every 3 hours).">
+            <Row label="Drafts per run" htmlFor="drafts" hint="Messages written per click of Draft new emails (and every 3 hours).">
               <input id="drafts" type="number" inputMode="numeric" className="input set-num" min={1} max={50} value={form.drafts_per_run}
                 onChange={e => patch({ drafts_per_run: int(e.target.value, 1, 50, form.drafts_per_run) })} />
             </Row>
-            <Row label="Follow-ups" htmlFor="followups" hint="Days after the first email to draft each follow-up (sent as a reply in the same thread). Leave empty for no follow-ups.">
+            <Row label="Follow-ups" htmlFor="followups" hint="Days after the first email. Sent as replies in the same thread. Empty = none.">
               <div className="set-suffix">
                 <input id="followups" className="input" value={followText} placeholder="4, 7"
                   onChange={e => { setFollowText(e.target.value); patch({ follow_up_days: parseFollowUps(e.target.value) }) }}
@@ -168,12 +168,12 @@ export default function SettingsPage() {
             </Row>
           </Section>
 
-          <Section title="Sending" desc="Used by Send approved for emails you approve with Approve all. Approve & send on a single email sends immediately.">
-            <Row label="Daily limit" htmlFor="daily" hint="Most emails per day. Keep it low (20–30) so Gmail trusts your account.">
+          <Section title="Sending" desc="For emails you approve with Approve all. Approve & send on one email sends right away.">
+            <Row label="Daily limit" htmlFor="daily" hint="Keep it at 20–30 so Gmail trusts your account.">
               <input id="daily" type="number" inputMode="numeric" className="input set-num" min={1} max={200} value={form.daily_max}
                 onChange={e => patch({ daily_max: int(e.target.value, 1, 200, form.daily_max) })} />
             </Row>
-            <Row label="Send window" htmlFor="win_start" hint="Scheduled emails only go out between these hours, one every 10 minutes.">
+            <Row label="Send window" htmlFor="win_start" hint="One scheduled email every 10 minutes inside these hours.">
               <div className="row" style={{ gap: 8 }}>
                 <select id="win_start" className="input set-select" value={form.send_window_start} onChange={e => patch({ send_window_start: Number(e.target.value) })}>
                   {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
@@ -194,7 +194,7 @@ export default function SettingsPage() {
             </Row>
           </Section>
 
-          <Section title="Your signature" desc="Added to the end of every email. The AI never writes its own sign-off.">
+          <Section wide title="Your signature" desc="Added to the end of every email. The AI never writes its own sign-off.">
             <div className="set-sig">
               <div className="set-sig-fields">
                 <div className="field">
@@ -234,7 +234,7 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          <Section title="Connections" desc="Checked on the server. Secret values never reach the browser.">
+          <Section wide title="Connections" desc="Checked on the server. Secret values never reach the browser.">
             <div className="set-conn">
               <div className="set-conn-item">
                 <span className="integration-icon"><IconDatabase /></span>
