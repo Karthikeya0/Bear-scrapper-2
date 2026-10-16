@@ -16,7 +16,8 @@ const rows = name => $(name).all().map(i => i.json).filter(l => l && l.id)
 const hookOf = l => String(l.ai_reasoning || '').match(/Hook:\s*(.+)/i)?.[1]?.trim() || null
 const firstName = l => {
   const f = String(l.name || '').trim().split(/\s+/)[0] || ''
-  return /^[A-Za-z][\w'-]*$/.test(f) ? f : null
+  // Only a real-looking name ("Maya"); handles like "klntsky" or "jdoe42" fall back to "Hi <Company> team,".
+  return /^[A-Z](?=.*[a-z])[A-Za-z'-]+$/.test(f) ? f : null
 }
 const facts = l => [
   'Founder first name: ' + (firstName(l) || 'unknown'),

@@ -112,6 +112,9 @@ const link = (connections, from, to, outputIndex = 0, inputIndex = 0) => {
 
 const SB = "{{ $('Config').first().json.supabase_url }}"
 const CONTINUE = { onError: 'continueRegularOutput' }
+// The one-pager attached to first emails, embedded into WF-3b at build time.
+const ONEPAGER_NAME = 'Bear-Studios-How-We-Work.pdf'
+const ONEPAGER_B64 = readFileSync(join(here, '..', '..', 'public', ONEPAGER_NAME)).toString('base64')
 // For AI calls: ride out short rate limits before giving up.
 const RETRY = { retryOnFail: true, maxTries: 3, waitBetweenTries: 5000 }
 
@@ -409,8 +412,6 @@ function buildWf3b() {
       supabase_url: 'https://YOUR-PROJECT-REF.supabase.co',
       // Shown as the From name in the lead's inbox.
       sender_name: 'Karthikeya | Bear Studios',
-      // First emails attach this PDF (served by the dashboard app from /public). Leave empty to send without it.
-      onepager_url: 'http://localhost:3000/Bear-Studios-How-We-Work.pdf',
       daily_max: 20,
       send_window_start: 9,
       send_window_end: 18,
@@ -462,12 +463,13 @@ function buildWf3b() {
       message: `={{ ${Q}.body }}`,
       options: { ...gmailOptions, replyToRecipientsOnly: true },
     }, gmailCred),
-    // First emails carry the one-pager; if it cannot be downloaded the email still goes out without it.
-    http('Download one-pager', [2640, 100], {
-      url: "={{ $('Config').first().json.onepager_url || 'http://localhost:1/none' }}",
-      responseFormat: 'file',
-      fileProperty: 'onepager',
-      timeout: 15000,
+    // First emails carry the one-pager. The PDF is embedded in this node (from public/), so it never depends on
+    // n8n reaching the dashboard. Without it the email is NOT sent: the body says it is attached.
+    node('One-pager', 'n8n-nodes-base.code', 2, [2640, 100], {
+      mode: 'runOnceForAllItems',
+      jsCode:
+        `const pdf = '${ONEPAGER_B64}'\n` +
+        `return [{ json: { file: '${ONEPAGER_NAME}' }, binary: { onepager: { data: pdf, mimeType: 'application/pdf', fileName: '${ONEPAGER_NAME}', fileExtension: 'pdf' } } }]\n`,
     }, CONTINUE),
     ifTrue('Have one-pager?', [2860, 100], '={{ !!($binary && $binary.onepager) }}'),
     node('Gmail: send with one-pager', 'n8n-nodes-base.gmail', 2.1, [3080, 40], {
@@ -476,13 +478,6 @@ function buildWf3b() {
       emailType: 'text',
       message: `={{ ${Q}.body }}`,
       options: { ...gmailOptions, attachmentsUi: { attachmentsBinary: [{ property: 'onepager' }] } },
-    }, gmailCred),
-    node('Gmail: send', 'n8n-nodes-base.gmail', 2.1, [3080, 200], {
-      sendTo: `={{ ${Q}.leads.email }}`,
-      subject: `={{ ${Q}.subject }}`,
-      emailType: 'text',
-      message: `={{ ${Q}.body }}`,
-      options: gmailOptions,
     }, gmailCred),
     code('Send result', [3300, 0], 'wf3b-send-result.js', 'runOnceForEachItem'),
     ifTrue('Sent?', [3520, 0], '={{ $json.ok }}'),
@@ -539,6 +534,7 @@ function buildWf3b() {
         "={{ JSON.stringify({ workflow_name: 'WF-3b-SendApproved', status: 'failed', emails_sent: 0, started_at: $('Config').first().json.started_at, finished_at: new Date().toISOString(), " +
         "errors: [{ outreach_id: $('Target').first().json.outreach_id, message: $('Send result').isExecuted " +
         "? 'Gmail send failed: ' + String($('Send result').first().json.error || 'unknown error') + ' (email returned to the review queue)' " +
+        ": $('Have one-pager?').isExecuted ? 'Not sent: the one-pager PDF could not be attached (email returned to the review queue). Re-import WF-3b.' " +
         ": 'Not sent: the email is no longer approved, is a DM, or the lead has no email / replied / unsubscribed.' }] }) }}",
     }),
   ]
@@ -558,13 +554,12 @@ function buildWf3b() {
   link(c, 'Ready to send?', 'Log failure', 1)
   link(c, 'Previous message', 'Reply in thread?')
   link(c, 'Reply in thread?', 'Gmail: reply', 0)
-  link(c, 'Reply in thread?', 'Download one-pager', 1)
-  link(c, 'Download one-pager', 'Have one-pager?')
+  link(c, 'Reply in thread?', 'One-pager', 1)
+  link(c, 'One-pager', 'Have one-pager?')
   link(c, 'Have one-pager?', 'Gmail: send with one-pager', 0)
-  link(c, 'Have one-pager?', 'Gmail: send', 1)
+  link(c, 'Have one-pager?', 'Return to review', 1)
   link(c, 'Gmail: reply', 'Send result')
   link(c, 'Gmail: send with one-pager', 'Send result')
-  link(c, 'Gmail: send', 'Send result')
   link(c, 'Send result', 'Sent?')
   link(c, 'Sent?', 'Mark sent', 0)
   link(c, 'Sent?', 'Return to review', 1)

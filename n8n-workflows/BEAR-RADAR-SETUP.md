@@ -88,7 +88,6 @@ If any node is red, open it, copy the error, and send it to me.
 | `lookback_days` (WF-4) | 3 | How far back WF-4 reads your inbox |
 | `sign_off`, `sender_name`, `company_name`, `website` (WF-3) | Cheers, / Karthikeya Popuri / Bear Studios / bearstudios.in | The signature added to the end of every email |
 | `sender_name` (WF-3b) | Karthikeya \| Bear Studios | From name the lead sees |
-| `onepager_url` (WF-3b) | http://localhost:3000/Bear-Studios-How-We-Work.pdf | PDF attached to first emails (served by the dashboard; keep `npm run dev` running). Empty = no attachment |
 
 **Qualification rule:** small **and** new **and** a buying signal (*just launched* or *no video on homepage*).
 Hunter is only called for leads that pass — check your Hunter plan's monthly quota and lower `batch_size` if needed.
