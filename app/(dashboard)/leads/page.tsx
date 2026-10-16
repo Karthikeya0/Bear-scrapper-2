@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/Toast'
 import { Alert, EmptyState, PageHeader, ScoreBadge, SkeletonRows, Spinner, StatusBadge } from '@/components/ui'
-import { IconBolt, IconRefresh, IconSearch, IconTarget } from '@/components/icons'
+import { IconBolt, IconDownload, IconRefresh, IconSearch, IconTarget } from '@/components/icons'
 import { errorMessage, formatDate, humanize } from '@/lib/format'
 import { triggerWorkflow } from '@/lib/workflows'
 
@@ -18,6 +18,8 @@ const STATUSES = ['scored', 'contacted', 'replied', 'converted', 'dead', 'bounce
 const SOURCES = ['reddit', 'producthunt', 'yc', 'twitter', 'linkedin']
 const PAGE_SIZE = 50
 const FUNNEL = ['scored', 'contacted', 'replied', 'converted'] as const
+/** Leads we have already emailed; shaded green in the table and the Excel export. */
+const EMAILED = new Set(['contacted', 'replied', 'converted'])
 
 /** Strip characters that have meaning inside a PostgREST `or=(...)` filter. */
 function sanitizeSearch(value: string) {
@@ -122,6 +124,9 @@ export default function LeadsPage() {
             <button className="btn" onClick={() => { fetchLeads(); fetchFunnel() }} disabled={loading}>
               <IconRefresh className="icon" /> Refresh
             </button>
+            <a className="btn" href="/api/leads/export" download title="Download all leads as an Excel file (emailed leads shaded green)">
+              <IconDownload className="icon" /> Export to Excel
+            </a>
             <button className="btn btn-primary" onClick={runScraper} disabled={triggering}>
               {triggering ? <Spinner /> : <IconBolt className="icon" />}
               {triggering ? 'Starting…' : 'Run scraper'}
@@ -214,7 +219,12 @@ export default function LeadsPage() {
                 </tr>
               ) : (
                 leads.map(lead => (
-                  <tr key={lead.id} className="clickable" onClick={() => router.push(`/leads/${lead.id}`)}>
+                  <tr
+                    key={lead.id}
+                    className={`clickable ${EMAILED.has(lead.status) ? 'emailed' : ''}`}
+                    onClick={() => router.push(`/leads/${lead.id}`)}
+                    title={EMAILED.has(lead.status) ? 'Outreach email sent' : undefined}
+                  >
                     <td>
                       <Link href={`/leads/${lead.id}`} className="cell-title" onClick={e => e.stopPropagation()}>
                         {lead.name || 'Unnamed lead'}
