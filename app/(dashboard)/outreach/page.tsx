@@ -5,7 +5,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/Toast'
 import { Alert, Badge, EmptyState, PageHeader, ScoreBadge, Spinner, StatusBadge } from '@/components/ui'
-import { IconBolt, IconCheck, IconExternal, IconMail, IconMessage, IconRefresh, IconSend, IconX } from '@/components/icons'
+import { IconBolt, IconCheck, IconChevronLeft, IconChevronRight, IconExternal, IconMail, IconMessage, IconRefresh, IconSend, IconX } from '@/components/icons'
 import { formatDateTime, timeAgo } from '@/lib/format'
 import { MIN_SCORE, scoringFailed } from '@/lib/outreach'
 import { triggerWorkflow } from '@/lib/workflows'
@@ -50,6 +50,11 @@ function kindLabel(item: QueueItem) {
   if (isDm(item)) return <Badge tone="violet" plain>DM</Badge>
   if ((item.sequence_step ?? 1) > 1) return <Badge tone="blue" plain>Follow-up {item.sequence_step}</Badge>
   return <Badge tone="accent" plain>Email</Badge>
+}
+
+/** Best human label for a draft's lead: name, else company, else the email's local part. */
+function leadName(item: QueueItem) {
+  return item.lead?.name || item.lead?.company || item.lead?.email?.split('@')[0] || 'Unknown lead'
 }
 
 function safeHttpUrl(value: string | null | undefined) {
@@ -190,6 +195,15 @@ function OutreachInner() {
         load()
         loadPipeline()
       } else if (Date.now() - run.startedAt > RUN_TIMEOUT_MS) {
+        // Drafts arrived but the final "Write run log" step did not: the drafting itself worked.
+        const { count } = await supabase.from('outreach_queue').select('id', { count: 'exact', head: true }).eq('status', 'pending_review')
+        const added = (count ?? 0) - run.pendingBefore
+        if (added > 0) {
+          setRun({ phase: 'done', tone: 'warn', title: `${added} new ${added === 1 ? 'draft' : 'drafts'} ready for review`, text: 'WF-3 wrote the drafts but its last step (Write run log) did not finish. Open that node in n8n and check it uses the Supabase account credential.' })
+          load()
+          loadPipeline()
+          return
+        }
         setRun({ phase: 'done', tone: 'error', title: 'WF-3 has not reported back', text: 'It stopped before writing its run log. Open n8n → WF-3: Draft Outreach → Executions, click the newest run and look for the red node. Make sure you imported the latest WF3-draft-outreach.json and published it.' })
       }
     }, POLL_MS)
@@ -212,7 +226,47 @@ function OutreachInner() {
     setSelectedId(item?.id ?? null)
     setSubject(item?.subject ?? '')
     setBody(item?.body ?? '')
+    // On phones the editor sits below the list: bring it into view.
+    if (item && window.matchMedia('(max-width: 1000px)').matches) {
+      requestAnimationFrame(() => document.getElementById('draft-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    }
   }
+
+  const position = selected ? items.findIndex(i => i.id === selected.id) : -1
+
+  const step = useCallback(
+    (delta: number) => {
+      if (!items.length) return
+      const next = items[Math.min(items.length - 1, Math.max(0, (position < 0 ? 0 : position + delta)))]
+      if (!next) return
+      setSelectedId(next.id)
+      setSubject(next.subject)
+      setBody(next.body)
+      document.querySelector(`[data-id="${next.id}"]`)?.scrollIntoView({ block: 'nearest' })
+    },
+    [items, position],
+  )
+
+  // Open the first draft automatically on wide screens, so the editor is never an empty box.
+  useEffect(() => {
+    if (selectedId || !items.length || !window.matchMedia('(min-width: 1001px)').matches) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- pick a default selection once data arrives
+    setSelectedId(items[0].id)
+    setSubject(items[0].subject)
+    setBody(items[0].body)
+  }, [items, selectedId])
+
+  // J / K (or ↓ / ↑) move between drafts when you are not typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (e.metaKey || e.ctrlKey || e.altKey || t.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); step(1) }
+      if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); step(-1) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [step])
 
   function removeAndAdvance(id: string) {
     const idx = items.findIndex(i => i.id === id)
@@ -478,107 +532,126 @@ function OutreachInner() {
         </Alert>
       )}
 
-      <div className="split">
-        <div className="card">
-          {loading && items.length === 0 ? (
-            <div className="list">
-              {[0, 1, 2, 3].map(i => (
-                <div key={i} className="list-item"><div className="skeleton" style={{ height: 44 }} /></div>
-              ))}
-            </div>
-          ) : items.length === 0 ? (
-            <EmptyState
-              icon={<IconMail />}
-              title={tab === 'pending_review' ? 'Inbox zero' : 'Nothing here'}
-              text={tab === 'pending_review' ? 'No drafts are waiting for review. Draft new emails to keep the pipeline moving.' : 'Nothing in this view yet.'}
-            />
-          ) : (
-            <div className="list">
-              {items.map(item => (
-                <button key={item.id} className={`list-item ${selectedId === item.id ? 'selected' : ''}`} onClick={() => select(item)}>
-                  <div className="row-between">
-                    <div className="cell-title truncate">{item.lead?.name || 'Unknown lead'}</div>
-                    <span className="subtle" style={{ fontSize: 12, flexShrink: 0 }}>{timeAgo(item.sent_at ?? item.approved_at ?? item.created_at)}</span>
-                  </div>
-                  <div className="row" style={{ marginTop: 2 }}>
-                    <span className="cell-sub truncate" style={{ flex: 1 }}>{item.lead?.company || '—'}</span>
-                    {kindLabel(item)}
-                    <ScoreBadge score={item.lead?.ai_score} />
-                  </div>
-                  <div style={{ fontWeight: 550, fontSize: 13, marginTop: 8 }} className="truncate">{item.subject}</div>
-                  <div className="list-preview">{item.body}</div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="inbox">
+        <section className="card inbox-pane" aria-label="Drafts">
+          <div className="inbox-pane-head">
+            <span className="inbox-pane-title">{TABS.find(t => t.key === tab)?.label}</span>
+            <span className="subtle">{items.length} {items.length === 1 ? 'item' : 'items'}</span>
+          </div>
+          <div className="inbox-scroll">
+            {loading && items.length === 0 ? (
+              <div className="list">
+                {[0, 1, 2, 3].map(i => (
+                  <div key={i} className="list-item"><div className="skeleton" style={{ height: 44 }} /></div>
+                ))}
+              </div>
+            ) : items.length === 0 ? (
+              <EmptyState
+                icon={<IconMail />}
+                title={tab === 'pending_review' ? 'Inbox zero' : 'Nothing here'}
+                text={tab === 'pending_review' ? 'No drafts are waiting for review. Draft new emails to keep the pipeline moving.' : 'Nothing in this view yet.'}
+              />
+            ) : (
+              <div className="list" role="listbox" aria-label="Drafts">
+                {items.map(item => (
+                  <button
+                    key={item.id}
+                    role="option"
+                    aria-selected={selectedId === item.id}
+                    data-id={item.id}
+                    className={`list-item ${selectedId === item.id ? 'selected' : ''}`}
+                    onClick={() => select(item)}
+                  >
+                    <div className="row-between">
+                      <div className="cell-title truncate">{leadName(item)}</div>
+                      <span className="subtle" style={{ fontSize: 12, flexShrink: 0 }}>{timeAgo(item.sent_at ?? item.approved_at ?? item.created_at)}</span>
+                    </div>
+                    <div className="row" style={{ marginTop: 2 }}>
+                      <span className="cell-sub truncate" style={{ flex: 1 }}>{item.lead?.company || '—'}</span>
+                      {kindLabel(item)}
+                      <ScoreBadge score={item.lead?.ai_score} />
+                    </div>
+                    <div style={{ fontWeight: 550, fontSize: 13, marginTop: 8 }} className="truncate">{item.subject}</div>
+                    <div className="list-preview">{item.body}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
 
-        <div className="card sticky">
+        <section className="card inbox-pane" id="draft-editor" aria-label="Selected draft">
           {!selected ? (
-            <EmptyState icon={<IconMail />} title="Select a draft" text="Pick one on the left to read, edit and approve it." />
+            <EmptyState icon={<IconMail />} title="Select a draft" text="Pick a draft from the list to read, edit and approve it." />
           ) : (
-            <div className="fade-in">
+            <>
               <div className="card-head">
                 <div style={{ minWidth: 0 }}>
-                  <div className="card-title">{isDm(selected) ? 'Direct message' : editable ? 'Review & approve' : 'Email'}</div>
+                  <div className="card-title truncate">{leadName(selected)}{selected.lead?.company && selected.lead?.name ? <span className="subtle" style={{ fontWeight: 500 }}> · {selected.lead.company}</span> : null}</div>
                   <div className="card-desc">
                     {isDm(selected)
-                      ? 'No email found — send this yourself on X or LinkedIn.'
+                      ? 'Direct message — no email found, send it yourself on X or LinkedIn'
                       : (selected.sequence_step ?? 1) > 1
-                        ? `Follow-up ${selected.sequence_step} · sent as a reply in the same Gmail thread`
+                        ? `Follow-up ${selected.sequence_step} · goes out as a reply in the same Gmail thread`
                         : 'First email'}
                   </div>
                 </div>
-                <div className="row">
+                <div className="row" style={{ flexShrink: 0 }}>
                   <StatusBadge status={selected.status} />
-                  <button className="icon-btn" onClick={() => select(null)} aria-label="Close"><IconX /></button>
+                  <div className="pager" role="group" aria-label="Move between drafts">
+                    <button className="icon-btn" onClick={() => step(-1)} disabled={position <= 0} aria-label="Previous draft" title="Previous (K)"><IconChevronLeft /></button>
+                    <span className="pager-count">{position + 1} / {items.length}</span>
+                    <button className="icon-btn" onClick={() => step(1)} disabled={position >= items.length - 1} aria-label="Next draft" title="Next (J)"><IconChevronRight /></button>
+                  </div>
                 </div>
               </div>
-              <dl className="email-meta">
-                <dt>To</dt>
-                <dd>
-                  {isDm(selected) ? (
-                    <span className="row" style={{ gap: 12, flexWrap: 'wrap', display: 'inline-flex' }}>
-                      {selected.lead?.x_handle && (
-                        <a className="link row" style={{ display: 'inline-flex' }} href={`https://x.com/${encodeURIComponent(selected.lead.x_handle)}`} target="_blank" rel="noopener noreferrer">
-                          @{selected.lead.x_handle} on X <IconExternal width={13} height={13} />
-                        </a>
-                      )}
-                      {safeHttpUrl(selected.lead?.linkedin_url) && (
-                        <a className="link row" style={{ display: 'inline-flex' }} href={safeHttpUrl(selected.lead?.linkedin_url)!} target="_blank" rel="noopener noreferrer">
-                          LinkedIn <IconExternal width={13} height={13} />
-                        </a>
-                      )}
-                    </span>
-                  ) : selected.lead?.email ? (
-                    <span className="mono">{selected.lead.email}</span>
-                  ) : (
-                    <span className="overdue">No email address on this lead — add one on the lead page.</span>
+              <div className="inbox-scroll">
+                <dl className="email-meta">
+                  <dt>To</dt>
+                  <dd>
+                    {isDm(selected) ? (
+                      <span className="row" style={{ gap: 12, flexWrap: 'wrap', display: 'inline-flex' }}>
+                        {selected.lead?.x_handle && (
+                          <a className="link row" style={{ display: 'inline-flex' }} href={`https://x.com/${encodeURIComponent(selected.lead.x_handle)}`} target="_blank" rel="noopener noreferrer">
+                            @{selected.lead.x_handle} on X <IconExternal width={13} height={13} />
+                          </a>
+                        )}
+                        {safeHttpUrl(selected.lead?.linkedin_url) && (
+                          <a className="link row" style={{ display: 'inline-flex' }} href={safeHttpUrl(selected.lead?.linkedin_url)!} target="_blank" rel="noopener noreferrer">
+                            LinkedIn <IconExternal width={13} height={13} />
+                          </a>
+                        )}
+                      </span>
+                    ) : selected.lead?.email ? (
+                      <span className="mono">{selected.lead.email}</span>
+                    ) : (
+                      <span className="overdue">No email address on this lead — add one on the lead page.</span>
+                    )}
+                  </dd>
+                  <dt>Lead</dt>
+                  <dd>
+                    <Link href={`/leads/${selected.lead_id}`} className="link">View profile</Link>
+                    {selected.lead?.ai_score != null && <span className="subtle"> · score {selected.lead.ai_score}</span>}
+                  </dd>
+                  {selected.status === 'scheduled' && selected.approved_at && (<><dt>Approved</dt><dd>{formatDateTime(selected.approved_at)} · waiting for its send slot</dd></>)}
+                  {selected.sent_at && (<><dt>Sent</dt><dd>{formatDateTime(selected.sent_at)}</dd></>)}
+                </dl>
+                <div className="card-pad">
+                  {!isDm(selected) && (
+                    <div className="field">
+                      <label className="label" htmlFor="subject">Subject</label>
+                      <input id="subject" className="input" value={subject} onChange={e => setSubject(e.target.value)} disabled={!editable || (selected.sequence_step ?? 1) > 1} maxLength={300} />
+                    </div>
                   )}
-                </dd>
-                <dt>Lead</dt>
-                <dd>
-                  <Link href={`/leads/${selected.lead_id}`} className="link">{selected.lead?.name || 'View lead'}</Link>
-                  {selected.lead?.company ? <span className="subtle"> · {selected.lead.company}</span> : null}
-                </dd>
-                {selected.status === 'scheduled' && selected.approved_at && (<><dt>Approved</dt><dd>{formatDateTime(selected.approved_at)} · waiting for its send slot</dd></>)}
-                {selected.sent_at && (<><dt>Sent</dt><dd>{formatDateTime(selected.sent_at)}</dd></>)}
-              </dl>
-              <div className="card-pad">
-                {!isDm(selected) && (
-                  <div className="field">
-                    <label className="label" htmlFor="subject">Subject</label>
-                    <input id="subject" className="input" value={subject} onChange={e => setSubject(e.target.value)} disabled={!editable || (selected.sequence_step ?? 1) > 1} maxLength={300} />
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label className="label" htmlFor="body">Message</label>
+                    <textarea id="body" className="textarea inbox-body" value={body} onChange={e => setBody(e.target.value)} disabled={!editable} />
+                    {editable && <span className="hint">{body.trim().split(/\s+/).filter(Boolean).length} words<span className="kbd-hint"> · J / K to move between drafts</span></span>}
                   </div>
-                )}
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label className="label" htmlFor="body">Message</label>
-                  <textarea id="body" className="textarea" value={body} onChange={e => setBody(e.target.value)} disabled={!editable} style={{ minHeight: isDm(selected) ? 180 : 300 }} />
-                  {editable && <span className="hint">{body.trim().split(/\s+/).filter(Boolean).length} words</span>}
                 </div>
               </div>
               {editable && isDm(selected) && (
-                <div className="drawer-foot" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <div className="drawer-foot inbox-foot">
                   <button className="btn btn-danger" onClick={() => setStatus('rejected', 'reject', 'Draft rejected.')} disabled={!!busy}>
                     {busy === 'reject' ? <Spinner /> : <IconX className="icon" />} Reject
                   </button>
@@ -593,7 +666,7 @@ function OutreachInner() {
                 </div>
               )}
               {editable && !isDm(selected) && (
-                <div className="drawer-foot" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <div className="drawer-foot inbox-foot">
                   {selected.status === 'scheduled' ? (
                     <button className="btn" onClick={() => setStatus('pending_review', 'requeue', 'Moved back to review.')} disabled={!!busy}>
                       {busy === 'requeue' && <Spinner />} Back to review
@@ -605,7 +678,7 @@ function OutreachInner() {
                   )}
                   <div className="row">
                     <button className="btn" onClick={saveDraft} disabled={!!busy || !dirty}>
-                      {busy === 'save' && <Spinner />} Save draft
+                      {busy === 'save' && <Spinner />} Save
                     </button>
                     <button
                       className="btn btn-primary"
@@ -619,15 +692,16 @@ function OutreachInner() {
                 </div>
               )}
               {(selected.status === 'approved' || selected.status === 'rejected') && (
-                <div className="drawer-foot">
+                <div className="drawer-foot inbox-foot">
+                  <span />
                   <button className="btn" onClick={() => setStatus('pending_review', 'requeue', 'Moved back to review.')} disabled={!!busy}>
                     {busy === 'requeue' && <Spinner />} Return to review
                   </button>
                 </div>
               )}
-            </div>
+            </>
           )}
-        </div>
+        </section>
       </div>
     </>
   )

@@ -565,3 +565,34 @@ table.table { width: 100%; border-collapse: separate; border-spacing: 0; font-si
   .health-label { display: none; }
   .health-pill { padding-left: 10px; padding-right: 10px; }
 }
+
+/* ---------- Inbox (Outreach queue): two fixed-height panes that scroll inside ---------- */
+.inbox {
+  display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 16px;
+  height: clamp(520px, calc(100dvh - var(--topbar-h) - 40px), 860px);
+}
+.inbox-pane { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.inbox-pane > .empty { margin: auto; }
+.inbox-pane-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0;
+  padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12.5px;
+}
+.inbox-pane-title { font-weight: 600; font-size: 13px; }
+.inbox-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.inbox-pane > .card-head, .inbox-foot { flex-shrink: 0; }
+.inbox-foot { justify-content: space-between; flex-wrap: wrap; }
+.inbox-body { min-height: 260px; }
+.pager { display: inline-flex; align-items: center; gap: 2px; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--border); }
+.pager .icon-btn { width: 30px; height: 30px; }
+.pager .icon-btn:disabled { opacity: 0.35; cursor: default; }
+.pager-count { font-size: 12px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; min-width: 38px; text-align: center; }
+@media (max-width: 1000px) {
+  .inbox { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .inbox-pane:first-child { max-height: 46dvh; }
+  .inbox-pane:last-child .inbox-scroll { overflow: visible; }
+  #draft-editor { scroll-margin-top: calc(var(--topbar-h) + 12px); }
+  #draft-editor > .card-head { flex-wrap: wrap; }
+  #draft-editor > .card-head > :first-child { flex: 1 1 100%; }
+  #draft-editor > .card-head > :last-child { width: 100%; justify-content: space-between; }
+  .kbd-hint { display: none; }
+}
