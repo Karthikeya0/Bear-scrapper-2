@@ -86,7 +86,9 @@ If any node is red, open it, copy the error, and send it to me.
 | `draft_dms` (WF-3) | true | Also draft X/LinkedIn DMs for good leads without an email |
 | `daily_max`, `send_window_start`/`end`, `send_on_weekends`, `timezone` (WF-3b) | 20, 9, 18, false, Asia/Kolkata | Limits for bulk-approved emails ("Approve & send" on one email always sends right away) |
 | `lookback_days` (WF-4) | 3 | How far back WF-4 reads your inbox |
-| `sender_name` / `portfolio_url` (WF-3, WF-3b) | Bear Studios / empty | Sign-off and From name; optional portfolio link |
+| `sign_off`, `sender_name`, `company_name`, `website` (WF-3) | Cheers, / Karthikeya Popuri / Bear Studios / bearstudios.in | The signature added to the end of every email |
+| `sender_name` (WF-3b) | Karthikeya \| Bear Studios | From name the lead sees |
+| `onepager_url` (WF-3b) | http://localhost:3000/Bear-Studios-How-We-Work.pdf | PDF attached to first emails (served by the dashboard; keep `npm run dev` running). Empty = no attachment |
 
 **Qualification rule:** small **and** new **and** a buying signal (*just launched* or *no video on homepage*).
 Hunter is only called for leads that pass — check your Hunter plan's monthly quota and lower `batch_size` if needed.

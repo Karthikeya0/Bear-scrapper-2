@@ -64,8 +64,8 @@ const code = (name, pos, file, mode = 'runOnceForAllItems') =>
   node(name, 'n8n-nodes-base.code', 2, pos, { mode, jsCode: src(file) })
 
 /** HTTP Request v4.2. `auth`: { supabase } | { header: CRED.x } | undefined */
-function http(name, pos, { method = 'GET', url, auth, headers = [], query = [], body, responseFormat = 'json', timeout = 30000, batching }, extra = {}) {
-  const p = { method, url, options: { timeout, response: { response: { responseFormat } } } }
+function http(name, pos, { method = 'GET', url, auth, headers = [], query = [], body, responseFormat = 'json', timeout = 30000, batching, fileProperty }, extra = {}) {
+  const p = { method, url, options: { timeout, response: { response: { responseFormat, ...(fileProperty ? { outputPropertyName: fileProperty } : {}) } } } }
   if (batching) p.options.batching = { batch: batching }
   let credentials
   if (auth?.supabase) {
@@ -309,8 +309,11 @@ function buildWf3() {
       min_score: 60,
       follow_up_days: '4,7',
       draft_dms: true,
-      sender_name: 'Bear Studios',
-      portfolio_url: '',
+      // Every email ends with: sign_off / sender_name / company_name / website
+      sign_off: 'Cheers,',
+      sender_name: 'Karthikeya Popuri',
+      company_name: 'Bear Studios',
+      website: 'bearstudios.in',
       groq_url: 'https://api.groq.com/openai/v1/chat/completions',
       // llama-3.3-70b-versatile was retired by Groq on 2026-08-16; gpt-oss-120b is Groq's recommended replacement.
       groq_model: 'openai/gpt-oss-120b',
@@ -404,7 +407,10 @@ function buildWf3b() {
     schedule('Every 10 minutes', [0, 240], { field: 'minutes', minutesInterval: 10 }),
     config('Config', [220, 100], {
       supabase_url: 'https://YOUR-PROJECT-REF.supabase.co',
-      sender_name: 'Bear Studios',
+      // Shown as the From name in the lead's inbox.
+      sender_name: 'Karthikeya | Bear Studios',
+      // First emails attach this PDF (served by the dashboard app from /public). Leave empty to send without it.
+      onepager_url: 'http://localhost:3000/Bear-Studios-How-We-Work.pdf',
       daily_max: 20,
       send_window_start: 9,
       send_window_end: 18,
@@ -456,16 +462,31 @@ function buildWf3b() {
       message: `={{ ${Q}.body }}`,
       options: { ...gmailOptions, replyToRecipientsOnly: true },
     }, gmailCred),
-    node('Gmail: send', 'n8n-nodes-base.gmail', 2.1, [2640, 100], {
+    // First emails carry the one-pager; if it cannot be downloaded the email still goes out without it.
+    http('Download one-pager', [2640, 100], {
+      url: "={{ $('Config').first().json.onepager_url || 'http://localhost:1/none' }}",
+      responseFormat: 'file',
+      fileProperty: 'onepager',
+      timeout: 15000,
+    }, CONTINUE),
+    ifTrue('Have one-pager?', [2860, 100], '={{ !!($binary && $binary.onepager) }}'),
+    node('Gmail: send with one-pager', 'n8n-nodes-base.gmail', 2.1, [3080, 40], {
+      sendTo: `={{ ${Q}.leads.email }}`,
+      subject: `={{ ${Q}.subject }}`,
+      emailType: 'text',
+      message: `={{ ${Q}.body }}`,
+      options: { ...gmailOptions, attachmentsUi: { attachmentsBinary: [{ property: 'onepager' }] } },
+    }, gmailCred),
+    node('Gmail: send', 'n8n-nodes-base.gmail', 2.1, [3080, 200], {
       sendTo: `={{ ${Q}.leads.email }}`,
       subject: `={{ ${Q}.subject }}`,
       emailType: 'text',
       message: `={{ ${Q}.body }}`,
       options: gmailOptions,
     }, gmailCred),
-    code('Send result', [2860, 0], 'wf3b-send-result.js', 'runOnceForEachItem'),
-    ifTrue('Sent?', [3080, 0], '={{ $json.ok }}'),
-    http('Mark sent', [3300, -100], {
+    code('Send result', [3300, 0], 'wf3b-send-result.js', 'runOnceForEachItem'),
+    ifTrue('Sent?', [3520, 0], '={{ $json.ok }}'),
+    http('Mark sent', [3740, -100], {
       method: 'PATCH',
       url: `=${SB}/rest/v1/outreach_queue?id=eq.{{ ${Q}.id }}`,
       auth: { supabase: true },
@@ -473,7 +494,7 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body: "={{ JSON.stringify({ status: 'sent', sent_at: new Date().toISOString() }) }}",
     }),
-    http('Save history', [3520, -100], {
+    http('Save history', [3960, -100], {
       method: 'POST',
       url: `=${SB}/rest/v1/outreach_history`,
       auth: { supabase: true },
@@ -484,7 +505,7 @@ function buildWf3b() {
         `sequence_step: ${Q}.sequence_step || 1, thread_id: $('Send result').first().json.thread_id, message_id: $('Send result').first().json.message_id, sent_at: new Date().toISOString() }) }}`,
     }, CONTINUE),
     // Only moves fresh leads to "contacted", so a lead that already replied is never downgraded.
-    http('Mark lead contacted', [3740, -100], {
+    http('Mark lead contacted', [4180, -100], {
       method: 'PATCH',
       url: `=${SB}/rest/v1/leads?id=eq.{{ ${Q}.lead_id }}&status=eq.scored`,
       auth: { supabase: true },
@@ -492,7 +513,7 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body: "={{ JSON.stringify({ status: 'contacted', first_contacted_at: new Date().toISOString() }) }}",
     }),
-    http('Log sent', [3960, -100], {
+    http('Log sent', [4400, -100], {
       method: 'POST',
       url: `=${SB}/rest/v1/workflow_logs`,
       auth: { supabase: true },
@@ -500,7 +521,7 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body: "={{ JSON.stringify({ workflow_name: 'WF-3b-SendApproved', status: 'success', emails_sent: 1, started_at: $('Config').first().json.started_at, finished_at: new Date().toISOString() }) }}",
     }),
-    http('Return to review', [3300, 100], {
+    http('Return to review', [3740, 100], {
       method: 'PATCH',
       url: `=${SB}/rest/v1/outreach_queue?id=eq.{{ ${Q}.id }}&status=eq.approved`,
       auth: { supabase: true },
@@ -508,7 +529,7 @@ function buildWf3b() {
       headers: [['Prefer', 'return=minimal']],
       body: "={{ JSON.stringify({ status: 'pending_review', approved_at: null }) }}",
     }),
-    http('Log failure', [3520, 240], {
+    http('Log failure', [3960, 240], {
       method: 'POST',
       url: `=${SB}/rest/v1/workflow_logs`,
       auth: { supabase: true },
@@ -537,8 +558,12 @@ function buildWf3b() {
   link(c, 'Ready to send?', 'Log failure', 1)
   link(c, 'Previous message', 'Reply in thread?')
   link(c, 'Reply in thread?', 'Gmail: reply', 0)
-  link(c, 'Reply in thread?', 'Gmail: send', 1)
+  link(c, 'Reply in thread?', 'Download one-pager', 1)
+  link(c, 'Download one-pager', 'Have one-pager?')
+  link(c, 'Have one-pager?', 'Gmail: send with one-pager', 0)
+  link(c, 'Have one-pager?', 'Gmail: send', 1)
   link(c, 'Gmail: reply', 'Send result')
+  link(c, 'Gmail: send with one-pager', 'Send result')
   link(c, 'Gmail: send', 'Send result')
   link(c, 'Send result', 'Sent?')
   link(c, 'Sent?', 'Mark sent', 0)

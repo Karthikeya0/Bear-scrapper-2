@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bear Studios — How We Work</title>
+<style>
+  @page { size: A4; margin: 0; }
+  :root {
+    --bg: #0a0a0b; --panel: #121214; --panel-2: #17171a; --line: #26262b; --line-soft: #1e1e22;
+    --text: #f4f4f5; --muted: #a1a1aa; --dim: #71717a; --accent: #f5b544; --accent-soft: rgba(245, 181, 68, 0.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { color: inherit; text-decoration: none; }
+  .page { width: 210mm; height: 297mm; padding: 18mm 17mm 14mm; position: relative; overflow: hidden; display: flex; flex-direction: column; page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .glow { position: absolute; width: 520px; height: 520px; border-radius: 50%; background: radial-gradient(circle, rgba(245,181,68,0.16), transparent 65%); top: -240px; right: -200px; pointer-events: none; }
+
+  .top { display: flex; justify-content: space-between; align-items: center; font-size: 8.5pt; color: var(--dim); letter-spacing: 0.14em; text-transform: uppercase; }
+  .brand { display: flex; align-items: center; gap: 9px; color: var(--text); font-weight: 700; letter-spacing: 0.18em; }
+  .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: #111; display: grid; place-items: center; font-weight: 800; font-size: 11pt; letter-spacing: 0; }
+
+  .hero { margin-top: 18mm; }
+  .eyebrow { font-size: 8.5pt; color: var(--accent); letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600; margin-bottom: 5mm; }
+  h1 { font-family: 'Inter Display', 'Inter', sans-serif; font-size: 40pt; line-height: 1.02; font-weight: 700; letter-spacing: -0.03em; }
+  h1 span { color: var(--accent); }
+  .lede { margin-top: 6mm; font-size: 11pt; line-height: 1.6; color: var(--muted); max-width: 150mm; }
+  .lede strong { color: var(--text); font-weight: 600; }
+
+  .section { margin-top: 13mm; }
+  .label { display: flex; align-items: center; gap: 10px; font-size: 8pt; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 4.5mm; }
+  .label::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  .services { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6mm; }
+  .card .num { font-size: 8pt; color: var(--accent); font-weight: 600; letter-spacing: 0.12em; }
+  .card h3 { font-size: 13pt; font-weight: 650; margin: 2.5mm 0 2mm; letter-spacing: -0.01em; }
+  .card p { font-size: 9.5pt; line-height: 1.55; color: var(--muted); }
+  .card .meta { margin-top: 4mm; padding-top: 3.5mm; border-top: 1px solid var(--line-soft); font-size: 8.5pt; color: var(--text); display: flex; justify-content: space-between; }
+  .card .meta span:last-child { color: var(--accent); }
+
+  .process { display: grid; grid-template-columns: repeat(7, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); }
+  .step { padding: 5mm 3.2mm 5.5mm; border-right: 1px solid var(--line-soft); position: relative; }
+  .step:last-child { border-right: 0; }
+  .step .n { font-family: 'Inter Display', 'Inter', sans-serif; font-size: 16pt; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+  .step .n::after { content: ''; display: block; width: 14px; height: 2px; background: var(--accent); margin: 2.5mm 0 3mm; border-radius: 2px; }
+  .step h4 { font-size: 9pt; font-weight: 650; margin-bottom: 1.5mm; }
+  .step p { font-size: 7.6pt; line-height: 1.45; color: var(--muted); }
+
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+  .fact { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 5.5mm 6mm; }
+  .fact .k { font-size: 7.8pt; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  .fact .v { font-family: 'Inter Display', 'Inter', sans-serif; font-size: 18pt; font-weight: 700; margin: 2.5mm 0 2mm; letter-spacing: -0.02em; }
+  .fact .v small { font-size: 9pt; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+  .fact ul { list-style: none; font-size: 8.8pt; line-height: 1.7; color: var(--muted); }
+  .fact li::before { content: '—'; color: var(--accent); margin-right: 6px; }
+
+  .dash-intro { font-size: 10pt; line-height: 1.55; color: var(--muted); margin-bottom: 4.5mm; max-width: 160mm; }
+  .dash-intro strong { color: var(--text); font-weight: 600; }
+  .dash { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3.5mm; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4.5mm 5mm; }
+  .tile h5 { font-size: 9.5pt; font-weight: 650; margin-bottom: 1.5mm; display: flex; align-items: center; gap: 7px; }
+  .tile h5::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .tile p { font-size: 8.3pt; line-height: 1.5; color: var(--muted); }
+
+  .cta { margin-top: auto; background: linear-gradient(135deg, #1b1710, #121214 60%); border: 1px solid rgba(245,181,68,0.35); border-radius: 16px; padding: 9mm 9mm 8mm; position: relative; overflow: hidden; }
+  .cta h2 { font-family: 'Inter Display', 'Inter', sans-serif; font-size: 22pt; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+  .cta p { margin-top: 3mm; font-size: 10pt; color: var(--muted); line-height: 1.55; max-width: 120mm; }
+  .cta .row { display: flex; align-items: center; gap: 5mm; margin-top: 6mm; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: #111; font-weight: 700; font-size: 10pt; padding: 3.4mm 6mm; border-radius: 999px; }
+  .contact { display: grid; grid-template-columns: 0.8fr 1.1fr 1.3fr; gap: 4mm; margin-top: 7mm; padding-top: 5mm; border-top: 1px solid rgba(255,255,255,0.08); }
+  .contact .k { font-size: 7.6pt; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); font-weight: 600; margin-bottom: 1.5mm; }
+  .contact .v { font-size: 9.5pt; line-height: 1.55; }
+
+  .foot { margin-top: 7mm; display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--dim); letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+
+<section class="page">
+  <div class="glow"></div>
+  <div class="top">
+    <div class="brand"><span class="mark">B</span>Bear Studios</div>
+    <div>How we work · 2026</div>
+  </div>
+
+  <div class="hero">
+    <div class="eyebrow">Motion design &amp; film for startups</div>
+    <h1>Motion &amp; Film<br>for <span>Startups.</span></h1>
+    <p class="lede">
+      Motion design, SaaS explainers and product launch films for startups building the future.
+      Every project we take on gets our complete obsession — <strong>the details nobody will notice consciously but everyone will feel.</strong>
+      That's the standard we hold ourselves to, and the only kind of work we put our name on.
+    </p>
+  </div>
+
+  <div class="section">
+    <div class="label">What we make</div>
+    <div class="services">
+      <div class="card">
+        <div class="num">01</div>
+        <h3>Explainer videos</h3>
+        <p>Complex products explained simply. Precision motion, clean UI animation and tight scripting — so investors and users get it in under 90 seconds.</p>
+        <div class="meta"><span>Turnaround</span><span>7–12 days</span></div>
+      </div>
+      <div class="card">
+        <div class="num">02</div>
+        <h3>Launch films &amp; promos</h3>
+        <p>Smooth, technical and precise. Fluid transitions, data-driven motion graphics and a cinematic rhythm that makes your product feel inevitable — not just impressive.</p>
+        <div class="meta"><span>Turnaround</span><span>10–14 days</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="label">Our process</div>
+    <div class="process">
+      <div class="step"><div class="n">01</div><h4>Brief</h4><p>Product, audience and goals.</p></div>
+      <div class="step"><div class="n">02</div><h4>Research</h4><p>References and competitor audit.</p></div>
+      <div class="step"><div class="n">03</div><h4>Script</h4><p>Every word earns its place.</p></div>
+      <div class="step"><div class="n">04</div><h4>Storyboard</h4><p>The story, frame by frame.</p></div>
+      <div class="step"><div class="n">05</div><h4>Styleframes</h4><p>Key moments designed in full.</p></div>
+      <div class="step"><div class="n">06</div><h4>Production</h4><p>Motion, sound and colour locked.</p></div>
+      <div class="step"><div class="n">07</div><h4>Delivery</h4><p>4K exports in every ratio.</p></div>
+    </div>
+  </div>
+
+  <div class="foot"><span>Bear Studios · bearstudios.in</span><span>01 / 02</span></div>
+</section>
+
+<section class="page">
+  <div class="glow" style="top:auto;bottom:-260px;right:auto;left:-220px"></div>
+  <div class="top">
+    <div class="brand"><span class="mark">B</span>Bear Studios</div>
+    <div>How we work · 2026</div>
+  </div>
+
+  <div class="section" style="margin-top:12mm">
+    <div class="label">What you can count on</div>
+    <div class="facts">
+      <div class="fact">
+        <div class="k">Review rounds</div>
+        <div class="v">2 <small>revisions</small></div>
+        <ul><li>Review → Revision 1</li><li>Review → Revision 2</li><li>Final approval</li></ul>
+      </div>
+      <div class="fact">
+        <div class="k">Turnaround</div>
+        <div class="v">7–14 <small>days</small></div>
+        <ul><li>Explainer: 7–12 days</li><li>Launch / promo: 10–14 days</li></ul>
+      </div>
+      <div class="fact">
+        <div class="k">Delivered in</div>
+        <div class="v">4K <small>every ratio</small></div>
+        <ul><li>16:9 · YouTube &amp; web</li><li>9:16 · Reels &amp; Shorts</li><li>1:1 · LinkedIn &amp; ads</li></ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="label">Your project dashboard</div>
+    <p class="dash-intro"><strong>Every client gets a dedicated ClickUp workspace</strong> — live for the whole project and open 24/7. No chasing emails for updates.</p>
+    <div class="dash">
+      <div class="tile"><h5>Onboarding</h5><p>Brief, NDA and contract — everything in one place from day one.</p></div>
+      <div class="tile"><h5>Project board</h5><p>Every task with an owner, due date, priority and time estimate.</p></div>
+      <div class="tile"><h5>Assets</h5><p>Files, references and source material, stored and versioned.</p></div>
+      <div class="tile"><h5>Storyboards</h5><p>Visual drafts uploaded for your review and comments.</p></div>
+      <div class="tile"><h5>Feedback</h5><p>Comment directly on tasks — no long email threads.</p></div>
+      <div class="tile"><h5>Deliverables</h5><p>Final exports dropped in the moment they're ready.</p></div>
+    </div>
+  </div>
+
+  <div class="cta">
+    <h2>Let's see if we're the right fit.</h2>
+    <p>Reply to this email or book a 15-minute call — we'll let you know within 24 hours if we're the right fit.</p>
+    <div class="row">
+      <a class="btn" href="https://calendly.com/bearstudios-co/30min">Book a 15-minute call →</a>
+      <a href="https://bearstudios.in" style="font-size:10pt;color:var(--muted)">or visit <span style="color:var(--text)">bearstudios.in</span></a>
+    </div>
+    <div class="contact">
+      <div><div class="k">Website</div><div class="v"><a href="https://bearstudios.in">bearstudios.in</a></div></div>
+      <div><div class="k">Email</div><div class="v"><a href="mailto:hello@bearstudios.in">hello@bearstudios.in</a><br><a href="mailto:bearstudios.co@gmail.com">bearstudios.co@gmail.com</a></div></div>
+      <div><div class="k">Book a call</div><div class="v"><a href="https://calendly.com/bearstudios-co/30min">calendly.com/bearstudios-co/30min</a></div></div>
+    </div>
+  </div>
+
+  <div class="foot"><span>© 2026 Bear Studios · bearstudios.in</span><span>02 / 02</span></div>
+</section>
+
+</body>
+</html>

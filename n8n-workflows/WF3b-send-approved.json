@@ -2,7 +2,7 @@
   "name": "WF-3b: Send Approved",
   "nodes": [
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000083",
+      "id": "b3a5e7c1-0000-4000-8000-000000000085",
       "name": "Dashboard: Approve & send",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -17,7 +17,7 @@
         "responseMode": "onReceived",
         "options": {}
       },
-      "webhookId": "7e1f0b2a-0000-4000-8000-000000000082",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000084",
       "credentials": {
         "httpHeaderAuth": {
           "id": "bearDashboardSecret",
@@ -26,7 +26,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000084",
+      "id": "b3a5e7c1-0000-4000-8000-000000000086",
       "name": "Every 10 minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000093",
+      "id": "b3a5e7c1-0000-4000-8000-000000000096",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -59,49 +59,55 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c0f19a00-0000-4000-8000-000000000085",
+              "id": "c0f19a00-0000-4000-8000-000000000087",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT-REF.supabase.co",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000086",
+              "id": "c0f19a00-0000-4000-8000-000000000088",
               "name": "sender_name",
-              "value": "Bear Studios",
+              "value": "Karthikeya | Bear Studios",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000087",
+              "id": "c0f19a00-0000-4000-8000-000000000089",
+              "name": "onepager_url",
+              "value": "http://localhost:3000/Bear-Studios-How-We-Work.pdf",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000090",
               "name": "daily_max",
               "value": 20,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000088",
+              "id": "c0f19a00-0000-4000-8000-000000000091",
               "name": "send_window_start",
               "value": 9,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000089",
+              "id": "c0f19a00-0000-4000-8000-000000000092",
               "name": "send_window_end",
               "value": 18,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000090",
+              "id": "c0f19a00-0000-4000-8000-000000000093",
               "name": "send_on_weekends",
               "value": false,
               "type": "boolean"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000091",
+              "id": "c0f19a00-0000-4000-8000-000000000094",
               "name": "timezone",
               "value": "Asia/Kolkata",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000092",
+              "id": "c0f19a00-0000-4000-8000-000000000095",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -113,7 +119,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000095",
+      "id": "b3a5e7c1-0000-4000-8000-000000000098",
       "name": "From dashboard?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -130,7 +136,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000094",
+              "id": "1f0c0d00-0000-4000-8000-000000000097",
               "leftValue": "={{ $('Dashboard: Approve & send').isExecuted }}",
               "rightValue": "",
               "operator": {
@@ -146,7 +152,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000096",
+      "id": "b3a5e7c1-0000-4000-8000-000000000099",
       "name": "Sent today",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -178,7 +184,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000097",
+      "id": "b3a5e7c1-0000-4000-8000-000000000100",
       "name": "Next scheduled",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -210,7 +216,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000098",
+      "id": "b3a5e7c1-0000-4000-8000-000000000101",
       "name": "Can send now?",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -224,7 +230,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000099",
+      "id": "b3a5e7c1-0000-4000-8000-000000000102",
       "name": "Claim scheduled",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -267,7 +273,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000100",
+      "id": "b3a5e7c1-0000-4000-8000-000000000103",
       "name": "Target",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -281,7 +287,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000101",
+      "id": "b3a5e7c1-0000-4000-8000-000000000104",
       "name": "Fetch approved email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -312,7 +318,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000103",
+      "id": "b3a5e7c1-0000-4000-8000-000000000106",
       "name": "Ready to send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -329,7 +335,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000102",
+              "id": "1f0c0d00-0000-4000-8000-000000000105",
               "leftValue": "={{ !!$json.id && $json.channel !== 'dm' && !!($json.leads && $json.leads.email) && !['unsubscribed', 'bounced', 'dead', 'replied'].includes($json.leads.status) }}",
               "rightValue": "",
               "operator": {
@@ -345,7 +351,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000104",
+      "id": "b3a5e7c1-0000-4000-8000-000000000107",
       "name": "Previous message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -377,7 +383,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000106",
+      "id": "b3a5e7c1-0000-4000-8000-000000000109",
       "name": "Reply in thread?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -394,7 +400,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000105",
+              "id": "1f0c0d00-0000-4000-8000-000000000108",
               "leftValue": "={{ ($('Fetch approved email').first().json.sequence_step || 1) > 1 && !!$json.message_id && !!$json.thread_id }}",
               "rightValue": "",
               "operator": {
@@ -410,7 +416,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000107",
+      "id": "b3a5e7c1-0000-4000-8000-000000000110",
       "name": "Gmail: reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -440,13 +446,104 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000108",
+      "id": "b3a5e7c1-0000-4000-8000-000000000111",
+      "name": "Download one-pager",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.onepager_url || 'http://localhost:1/none' }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "onepager"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000113",
+      "name": "Have one-pager?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000112",
+              "leftValue": "={{ !!($binary && $binary.onepager) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000114",
+      "name": "Gmail: send with one-pager",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3080,
+        40
+      ],
+      "parameters": {
+        "sendTo": "={{ $('Fetch approved email').first().json.leads.email }}",
+        "subject": "={{ $('Fetch approved email').first().json.subject }}",
+        "emailType": "text",
+        "message": "={{ $('Fetch approved email').first().json.body }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $('Config').first().json.sender_name }}",
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "onepager"
+              }
+            ]
+          }
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bearGmail",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000115",
       "name": "Gmail: send",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        2640,
-        100
+        3080,
+        200
       ],
       "parameters": {
         "sendTo": "={{ $('Fetch approved email').first().json.leads.email }}",
@@ -467,12 +564,12 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000109",
+      "id": "b3a5e7c1-0000-4000-8000-000000000116",
       "name": "Send result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2860,
+        3300,
         0
       ],
       "parameters": {
@@ -481,12 +578,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000111",
+      "id": "b3a5e7c1-0000-4000-8000-000000000118",
       "name": "Sent?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        3080,
+        3520,
         0
       ],
       "parameters": {
@@ -498,7 +595,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000110",
+              "id": "1f0c0d00-0000-4000-8000-000000000117",
               "leftValue": "={{ $json.ok }}",
               "rightValue": "",
               "operator": {
@@ -514,12 +611,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000112",
+      "id": "b3a5e7c1-0000-4000-8000-000000000119",
       "name": "Mark sent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3300,
+        3740,
         -100
       ],
       "parameters": {
@@ -557,12 +654,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000113",
+      "id": "b3a5e7c1-0000-4000-8000-000000000120",
       "name": "Save history",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3520,
+        3960,
         -100
       ],
       "parameters": {
@@ -601,12 +698,12 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000114",
+      "id": "b3a5e7c1-0000-4000-8000-000000000121",
       "name": "Mark lead contacted",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3740,
+        4180,
         -100
       ],
       "parameters": {
@@ -644,12 +741,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000115",
+      "id": "b3a5e7c1-0000-4000-8000-000000000122",
       "name": "Log sent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3960,
+        4400,
         -100
       ],
       "parameters": {
@@ -687,12 +784,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000116",
+      "id": "b3a5e7c1-0000-4000-8000-000000000123",
       "name": "Return to review",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3300,
+        3740,
         100
       ],
       "parameters": {
@@ -730,12 +827,12 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000117",
+      "id": "b3a5e7c1-0000-4000-8000-000000000124",
       "name": "Log failure",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3520,
+        3960,
         240
       ],
       "parameters": {
@@ -931,6 +1028,35 @@
         ],
         [
           {
+            "node": "Download one-pager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download one-pager": {
+      "main": [
+        [
+          {
+            "node": "Have one-pager?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Have one-pager?": {
+      "main": [
+        [
+          {
+            "node": "Gmail: send with one-pager",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Gmail: send",
             "type": "main",
             "index": 0
@@ -939,6 +1065,17 @@
       ]
     },
     "Gmail: reply": {
+      "main": [
+        [
+          {
+            "node": "Send result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: send with one-pager": {
       "main": [
         [
           {

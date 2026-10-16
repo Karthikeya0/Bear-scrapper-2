@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000068",
+      "id": "b3a5e7c1-0000-4000-8000-000000000070",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -90,30 +90,42 @@
             },
             {
               "id": "c0f19a00-0000-4000-8000-000000000063",
-              "name": "sender_name",
-              "value": "Bear Studios",
+              "name": "sign_off",
+              "value": "Cheers,",
               "type": "string"
             },
             {
               "id": "c0f19a00-0000-4000-8000-000000000064",
-              "name": "portfolio_url",
-              "value": "",
+              "name": "sender_name",
+              "value": "Karthikeya Popuri",
               "type": "string"
             },
             {
               "id": "c0f19a00-0000-4000-8000-000000000065",
+              "name": "company_name",
+              "value": "Bear Studios",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000066",
+              "name": "website",
+              "value": "bearstudios.in",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000067",
               "name": "groq_url",
               "value": "https://api.groq.com/openai/v1/chat/completions",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000066",
+              "id": "c0f19a00-0000-4000-8000-000000000068",
               "name": "groq_model",
               "value": "openai/gpt-oss-120b",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000067",
+              "id": "c0f19a00-0000-4000-8000-000000000069",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -125,7 +137,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000069",
+      "id": "b3a5e7c1-0000-4000-8000-000000000071",
       "name": "Fetch leads to draft",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -157,7 +169,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000070",
+      "id": "b3a5e7c1-0000-4000-8000-000000000072",
       "name": "Fetch DM leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -189,7 +201,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000071",
+      "id": "b3a5e7c1-0000-4000-8000-000000000073",
       "name": "Fetch follow-ups",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -221,7 +233,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000072",
+      "id": "b3a5e7c1-0000-4000-8000-000000000074",
       "name": "Plan drafts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -231,12 +243,12 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// WF-3 \"Plan drafts\" (Code node, Run Once for All Items).\n// Reads the three Supabase lookups and decides what to write this run, newest work first:\n//   1. follow-ups  – leads emailed N days ago who have not replied (step 2, then step 3)\n//   2. first email – qualified leads with an email that have never had a draft\n//   3. DM          – qualified leads with no email but an X or LinkedIn profile\n// Output: one item per draft with the Groq prompt ready (system + user) and the row fields to save.\n\nconst cfg = $('Config').first().json\nconst MAX = Number(cfg.batch_size) || 10\nconst FOLLOW_UP_DAYS = String(cfg.follow_up_days || '4,7').split(',').map(n => Number(n.trim())).filter(n => n > 0)\nconst MAX_STEP = 1 + FOLLOW_UP_DAYS.length\nconst DAY = 86400000\nconst PENDING = new Set(['pending_review', 'scheduled', 'approved'])\n\nconst rows = name => $(name).all().map(i => i.json).filter(l => l && l.id)\nconst hookOf = l => String(l.ai_reasoning || '').match(/Hook:\\s*(.+)/i)?.[1]?.trim() || null\nconst firstName = l => {\n  const f = String(l.name || '').trim().split(/\\s+/)[0] || ''\n  return /^[A-Za-z][\\w'-]*$/.test(f) ? f : null\n}\nconst facts = l => [\n  'Founder first name: ' + (firstName(l) || 'unknown'),\n  'Founder role: ' + (l.founder_role || 'unknown'),\n  'Company: ' + (l.company || '?'),\n  'Website: ' + (l.website || l.company_domain || '?'),\n  'Launched: ' + (l.launched_at || 'unknown') + ' (via ' + l.source + ')',\n  'Homepage has a video: ' + (l.has_video === null || l.has_video === undefined ? 'unknown' : l.has_video),\n  'Signals: ' + (Array.isArray(l.signals) ? l.signals.join(', ') : ''),\n  'Hook: ' + (hookOf(l) || 'none'),\n  'About: ' + String(l.bio || l.post_content || '').slice(0, 1200),\n  'Sender name: ' + cfg.sender_name,\n  'Portfolio link: ' + (cfg.portfolio_url || 'none'),\n]\n\nconst SERVICE = 'Bear Studios, a small studio that makes brand launch videos, promo videos and SaaS explainer videos for startups'\nconst RULES = 'Never invent facts, numbers, clients or results. Mention the portfolio link only if one is given. No markdown, no emojis, no exclamation marks.'\n\nconst SYS_FIRST =\n  `You write short cold emails for ${SERVICE}. Write to the founder of the company described. Plain text, 60-110 words. ` +\n  'Open with the provided hook or another specific detail about what they built or launched (never \"I hope this finds you well\"). ' +\n  'Then offer ONE fitting service: no video on their homepage -> a 60-90s explainer; just launched -> a launch/promo video for socials; otherwise whichever fits best. ' +\n  `${RULES} End with a soft, low-effort question (e.g. \"Worth a quick look at a few examples?\"), then sign off with the sender name on its own line. ` +\n  'Address the founder by first name if given, otherwise \"Hi there\". Subject: under 7 words, lowercase is fine, specific to them, no clickbait. ' +\n  'Output ONLY JSON: {\"subject\": \"...\", \"body\": \"...\"}'\n\nconst SYS_FOLLOW =\n  `You write a short follow-up to a cold email that got no reply, for ${SERVICE}. It is sent as a reply in the same thread, so do not repeat the pitch. ` +\n  'Plain text, 25-60 words. Step 2: a friendly nudge that adds ONE new, concrete idea for a video they could use (based on their product). ' +\n  'Step 3 (last): a polite close-the-loop note that says you will not follow up again and leaves the door open. ' +\n  `${RULES} Sign off with the sender name. Output ONLY JSON: {\"subject\": \"Re: <original subject>\", \"body\": \"...\"}`\n\nconst SYS_DM =\n  `You write a short direct message (X or LinkedIn) for ${SERVICE}, to the founder of the company described. Plain text, 25-60 words, casual and human. ` +\n  'Mention one specific thing about what they launched, then ask if they would be open to seeing a couple of launch/explainer video examples. ' +\n  `${RULES} No sign-off needed. Output ONLY JSON: {\"subject\": \"DM to <company>\", \"body\": \"...\"}`\n\nconst plan = []\nconst seenLead = new Set()\nconst seenEmail = new Set()\nconst add = item => {\n  if (plan.length >= MAX || seenLead.has(item.lead_id)) return\n  if (item.email && seenEmail.has(item.email.toLowerCase())) return\n  seenLead.add(item.lead_id)\n  if (item.email) seenEmail.add(item.email.toLowerCase())\n  plan.push(item)\n}\n\n// 1. Follow-ups\nconst now = Date.now()\nfor (const l of rows('Fetch follow-ups')) {\n  const queue = Array.isArray(l.outreach_queue) ? l.outreach_queue : []\n  if (!l.email || queue.some(q => PENDING.has(q.status))) continue\n  const sent = queue.filter(q => q.status === 'sent' && q.sent_at && (q.channel || 'email') === 'email')\n  if (!sent.length) continue\n  const last = sent.reduce((a, b) => ((b.sequence_step || 1) > (a.sequence_step || 1) ? b : a))\n  const step = (last.sequence_step || 1) + 1\n  if (step > MAX_STEP) continue\n  const waitDays = FOLLOW_UP_DAYS[step - 2]\n  if ((now - Date.parse(last.sent_at)) / DAY < waitDays) continue\n  const first = sent.find(q => (q.sequence_step || 1) === 1) || last\n  add({\n    kind: 'followup', lead_id: l.id, email: l.email, channel: 'email', sequence_step: step,\n    system: SYS_FOLLOW,\n    user: [\n      `This is follow-up step ${step} of ${MAX_STEP}.`,\n      `Original subject: ${first.subject}`,\n      `Original email:\\n${String(first.body || '').slice(0, 1500)}`,\n      ...facts(l),\n    ].join('\\n'),\n    fallback_subject: /^re:/i.test(first.subject || '') ? first.subject : `Re: ${first.subject}`,\n  })\n}\n\n// 2. First emails\nfor (const l of rows('Fetch leads to draft')) {\n  if (!l.email || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue\n  add({ kind: 'first', lead_id: l.id, email: l.email, channel: 'email', sequence_step: 1, system: SYS_FIRST, user: facts(l).join('\\n') })\n}\n\n// 3. DMs for leads without an email\nif (cfg.draft_dms !== false && String(cfg.draft_dms) !== 'false') {\n  for (const l of rows('Fetch DM leads')) {\n    if (l.email || !(l.x_handle || l.linkedin_url) || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue\n    add({ kind: 'dm', lead_id: l.id, email: null, channel: 'dm', sequence_step: 1, system: SYS_DM, user: facts(l).join('\\n') })\n  }\n}\n\nreturn plan.map(json => ({ json }))\n"
+        "jsCode": "// WF-3 \"Plan drafts\" (Code node, Run Once for All Items).\n// Reads the three Supabase lookups and decides what to write this run, newest work first:\n//   1. follow-ups  – leads emailed N days ago who have not replied (step 2, then step 3)\n//   2. first email – qualified leads with an email that have never had a draft\n//   3. DM          – qualified leads with no email but an X or LinkedIn profile\n// Output: one item per draft with the Groq prompt ready (system + user) and the row fields to save.\n\nconst cfg = $('Config').first().json\nconst MAX = Number(cfg.batch_size) || 10\nconst FOLLOW_UP_DAYS = String(cfg.follow_up_days || '4,7').split(',').map(n => Number(n.trim())).filter(n => n > 0)\nconst MAX_STEP = 1 + FOLLOW_UP_DAYS.length\nconst DAY = 86400000\nconst PENDING = new Set(['pending_review', 'scheduled', 'approved'])\n\nconst rows = name => $(name).all().map(i => i.json).filter(l => l && l.id)\nconst hookOf = l => String(l.ai_reasoning || '').match(/Hook:\\s*(.+)/i)?.[1]?.trim() || null\nconst firstName = l => {\n  const f = String(l.name || '').trim().split(/\\s+/)[0] || ''\n  return /^[A-Za-z][\\w'-]*$/.test(f) ? f : null\n}\nconst facts = l => [\n  'Founder first name: ' + (firstName(l) || 'unknown'),\n  'Founder role: ' + (l.founder_role || 'unknown'),\n  'Company: ' + (l.company || '?'),\n  'Website: ' + (l.website || l.company_domain || '?'),\n  'Launched: ' + (l.launched_at || 'unknown') + ' (found on ' + l.source + ')',\n  'Homepage has a product video: ' + (l.has_video === null || l.has_video === undefined ? 'unknown' : l.has_video ? 'yes' : 'no'),\n  'Signals: ' + (Array.isArray(l.signals) ? l.signals.join(', ') : ''),\n  'Hook (a specific detail about them): ' + (hookOf(l) || 'none'),\n  'What they built / said: ' + String(l.bio || l.post_content || '').slice(0, 1200),\n]\n\n// What Bear Studios is, from the one-pager. The model may only use these facts about us.\nconst STUDIO = [\n  'ABOUT US — Bear Studios (bearstudios.in): motion design and film for startups.',\n  'We make two things: (1) Explainer videos — complex products explained simply, precise motion, clean UI animation and tight scripting, so investors and users get it in under 90 seconds; (2) Product launch videos / promos — smooth, cinematic, data-driven motion graphics that make a product feel inevitable.',\n  'How we work: Brief, Research, Script, Storyboard, Styleframes, Production, Delivery. Two review rounds. Turnaround: explainer 7-12 days, launch video 10-14 days.',\n  'Every video is delivered in 4K in 16:9 (web/YouTube), 9:16 (Reels/Shorts) and 1:1 (LinkedIn/ads). Each client gets a live ClickUp workspace for briefs, storyboards, feedback and deliverables.',\n  'Our standard: obsessive craft — the details nobody notices consciously but everyone feels.',\n].join('\\n')\n\nconst VOICE =\n  'VOICE: a founder writing to another founder. Confident, warm, specific, concise. Short sentences. Plain text only: no markdown, no bullet points, no emojis, no exclamation marks. ' +\n  'Never use: \"I hope this finds you well\", \"I came across\", \"I wanted to reach out\", \"just checking in\", \"touch base\", \"circle back\", \"synergy\", \"game-changer\", \"revolutionize\", \"leverage\", \"cutting-edge\", \"take it to the next level\". ' +\n  'Never invent facts, numbers, client names, results or prices. Only use facts given about them and about us. ' +\n  'Do NOT write a greeting sign-off or signature (no \"Best\", \"Cheers\", name or company at the end) — it is added automatically.'\n\nconst SYS_FIRST = [\n  'You write first-touch cold emails for Bear Studios to the founder of a startup that just launched.',\n  STUDIO,\n  VOICE,\n  'STRUCTURE (4 short paragraphs, 90-140 words in total):',\n  '1. Greeting line: \"Hi <first name>,\" (or \"Hi <Company> team,\" if the name is unknown).',\n  '2. One or two sentences showing you actually looked: a specific, genuine observation about what they built or launched (use the hook). No generic praise.',\n  '3. The gap and the idea: why a video matters for them right now (e.g. new visitors decide in seconds, the product is hard to grasp from text, launch momentum fades fast) and ONE concrete video idea tailored to their product — describe what the video would show in a sentence. Pick the service that fits: no homepage video -> a 60-90 second explainer; just launched -> a launch film plus vertical and square cuts for social.',\n  '4. At most one proof point about how we work (e.g. delivered in 7-12 days, or 4K in every format, or a live workspace) — only if it helps.',\n  '5. A low-friction close: a single soft question such as \"Would a 15-minute call next week be useful?\" or \"Want me to sketch a rough storyline for <Company>?\". Then a final line exactly: \"I\\'ve attached a one-pager on how we work.\"',\n  'SUBJECT: 3-6 words, specific to them, sentence case or lowercase, no clickbait, no \"quick question\".',\n  'Output ONLY JSON: {\"subject\": \"...\", \"body\": \"...\"} where body uses \\\\n\\\\n between paragraphs.',\n].join('\\n')\n\nconst SYS_FOLLOW = [\n  'You write a short follow-up to a cold email from Bear Studios that got no reply. It is sent as a reply in the same Gmail thread, so do not repeat the original pitch or re-introduce us.',\n  STUDIO,\n  VOICE,\n  'Follow-up step 2 (40-80 words): \"Hi <first name>,\" then add genuine value — one new, concrete storyline idea for a video about their product (what the first seconds would show, what the viewer understands by the end). Close with a soft question.',\n  'Follow-up step 3, the last one (30-60 words): \"Hi <first name>,\" then a polite close-the-loop note: you will not follow up again, the door stays open, they can reply any time or book a call at calendly.com/bearstudios-co/30min. No guilt-tripping.',\n  'Output ONLY JSON: {\"subject\": \"Re: <original subject>\", \"body\": \"...\"}',\n].join('\\n')\n\nconst SYS_DM = [\n  'You write a short direct message (X or LinkedIn) from Karthikeya at Bear Studios to the founder of a startup that just launched.',\n  STUDIO,\n  VOICE,\n  'DM rules: 35-70 words, casual but sharp, 2-3 short sentences. Start with \"Hey <first name>\" (or \"Hey\" if unknown). Mention one specific thing about what they launched, one concrete video idea for it, then ask if they would like to see a couple of examples. No links, no sign-off.',\n  'Output ONLY JSON: {\"subject\": \"DM to <company>\", \"body\": \"...\"}',\n].join('\\n')\n\nconst plan = []\nconst seenLead = new Set()\nconst seenEmail = new Set()\nconst add = item => {\n  if (plan.length >= MAX || seenLead.has(item.lead_id)) return\n  if (item.email && seenEmail.has(item.email.toLowerCase())) return\n  seenLead.add(item.lead_id)\n  if (item.email) seenEmail.add(item.email.toLowerCase())\n  plan.push(item)\n}\n\n// 1. Follow-ups\nconst now = Date.now()\nfor (const l of rows('Fetch follow-ups')) {\n  const queue = Array.isArray(l.outreach_queue) ? l.outreach_queue : []\n  if (!l.email || queue.some(q => PENDING.has(q.status))) continue\n  const sent = queue.filter(q => q.status === 'sent' && q.sent_at && (q.channel || 'email') === 'email')\n  if (!sent.length) continue\n  const last = sent.reduce((a, b) => ((b.sequence_step || 1) > (a.sequence_step || 1) ? b : a))\n  const step = (last.sequence_step || 1) + 1\n  if (step > MAX_STEP) continue\n  const waitDays = FOLLOW_UP_DAYS[step - 2]\n  if ((now - Date.parse(last.sent_at)) / DAY < waitDays) continue\n  const first = sent.find(q => (q.sequence_step || 1) === 1) || last\n  add({\n    kind: 'followup', lead_id: l.id, email: l.email, channel: 'email', sequence_step: step,\n    system: SYS_FOLLOW,\n    user: [\n      `This is follow-up step ${step} of ${MAX_STEP}.`,\n      `Original subject: ${first.subject}`,\n      `Original email:\\n${String(first.body || '').slice(0, 1500)}`,\n      ...facts(l),\n    ].join('\\n'),\n    fallback_subject: /^re:/i.test(first.subject || '') ? first.subject : `Re: ${first.subject}`,\n  })\n}\n\n// 2. First emails\nfor (const l of rows('Fetch leads to draft')) {\n  if (!l.email || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue\n  add({ kind: 'first', lead_id: l.id, email: l.email, channel: 'email', sequence_step: 1, system: SYS_FIRST, user: facts(l).join('\\n') })\n}\n\n// 3. DMs for leads without an email\nif (cfg.draft_dms !== false && String(cfg.draft_dms) !== 'false') {\n  for (const l of rows('Fetch DM leads')) {\n    if (l.email || !(l.x_handle || l.linkedin_url) || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue\n    add({ kind: 'dm', lead_id: l.id, email: null, channel: 'dm', sequence_step: 1, system: SYS_DM, user: facts(l).join('\\n') })\n  }\n}\n\nreturn plan.map(json => ({ json }))\n"
       },
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000074",
+      "id": "b3a5e7c1-0000-4000-8000-000000000076",
       "name": "Anything to draft?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -253,7 +265,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000073",
+              "id": "1f0c0d00-0000-4000-8000-000000000075",
               "leftValue": "={{ !!$json.lead_id }}",
               "rightValue": "",
               "operator": {
@@ -269,7 +281,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000075",
+      "id": "b3a5e7c1-0000-4000-8000-000000000077",
       "name": "Groq: write message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -313,7 +325,7 @@
       "waitBetweenTries": 5000
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000076",
+      "id": "b3a5e7c1-0000-4000-8000-000000000078",
       "name": "Build drafts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -323,11 +335,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// WF-3 \"Build drafts\" (Code node, Run Once for All Items).\n// Input: one Groq response per planned draft, in the same order as \"Plan drafts\".\n// Output: ONE item { rows: [...outreach_queue rows], drafted, failed: [...] }.\n\n// The model is asked for JSON only; take the first {...} block in case it adds any text around it.\nconst parseJson = text => {\n  const raw = String(text || '').trim()\n  const block = raw.match(/\\{[\\s\\S]*\\}/)\n  return JSON.parse(block ? block[0] : raw)\n}\n// n8n reports API errors as '400 - {\"error\":{\"message\":\"...\"}}'; keep the readable part.\nconst errorText = err => {\n  const text = String((err && err.message) || err || 'unknown error')\n  return (text.match(/\"message\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"/) || [])[1] || text\n}\n\nconst plan = $('Plan drafts').all().map(i => i.json)\nconst rows = []\nconst failed = []\n\n$input.all().forEach((item, i) => {\n  const p = plan[i]\n  if (!p) return\n  const res = item.json || {}\n  try {\n    const out = parseJson(res.choices[0].message.content)\n    let subject = String(out.subject || '').replace(/\\s+/g, ' ').trim().slice(0, 120)\n    const body = String(out.body || '').replace(/\\r\\n/g, '\\n').trim()\n    // Follow-ups go out as replies in the original Gmail thread, so keep the original subject.\n    if (p.kind === 'followup') subject = p.fallback_subject\n    if (!subject || body.length < 40) throw new Error('empty subject or body')\n    rows.push({ lead_id: p.lead_id, subject, body, status: 'pending_review', sequence_step: p.sequence_step, channel: p.channel })\n  } catch (e) {\n    const reason = res.error ? errorText(res.error) : String(e.message || e)\n    failed.push({ lead: p.lead_id, kind: p.kind, message: `Draft failed: ${reason.slice(0, 200)}` })\n  }\n})\n\nreturn [{ json: { rows, drafted: rows.length, failed } }]\n"
+        "jsCode": "// WF-3 \"Build drafts\" (Code node, Run Once for All Items).\n// Input: one Groq response per planned draft, in the same order as \"Plan drafts\".\n// Output: ONE item { rows: [...outreach_queue rows], drafted, failed: [...] }.\n\n// The model is asked for JSON only; take the first {...} block in case it adds any text around it.\nconst parseJson = text => {\n  const raw = String(text || '').trim()\n  const block = raw.match(/\\{[\\s\\S]*\\}/)\n  return JSON.parse(block ? block[0] : raw)\n}\n// n8n reports API errors as '400 - {\"error\":{\"message\":\"...\"}}'; keep the readable part.\nconst errorText = err => {\n  const text = String((err && err.message) || err || 'unknown error')\n  return (text.match(/\"message\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"/) || [])[1] || text\n}\n\nconst cfg = $('Config').first().json\nconst plan = $('Plan drafts').all().map(i => i.json)\n\n// One fixed, professional ending for every email (the model is told not to write its own).\nconst SIGNATURE = [cfg.sign_off || 'Cheers,', cfg.sender_name || 'Karthikeya Popuri', cfg.company_name || 'Bear Studios', cfg.website || 'bearstudios.in']\n  .filter(Boolean)\n  .join('\\n')\nconst ATTACH_LINE = \"I've attached a one-pager on how we work.\"\nconst SIGN_OFF = /^(best|cheers|thanks|thank you|regards|warm regards|kind regards|best regards|sincerely|talk soon)[,.!]?$/i\n\n// Drop any sign-off the model added anyway, so the signature never appears twice.\nconst stripSignOff = text => {\n  const lines = text.split('\\n')\n  for (let i = Math.max(0, lines.length - 6); i < lines.length; i++) {\n    if (SIGN_OFF.test(lines[i].trim())) return lines.slice(0, i).join('\\n').trimEnd()\n  }\n  return lines\n    .filter((line, i) => !(i >= lines.length - 3 && /karthikeya|bear studios|bearstudios\\.in/i.test(line) && line.trim().split(/\\s+/).length <= 4))\n    .join('\\n')\n    .trimEnd()\n}\n\nconst finishEmail = (body, kind) => {\n  let text = stripSignOff(body)\n  if (kind === 'first') {\n    text = text.replace(/\\n*I['’]ve attached a one-pager on how we work\\.?\\s*$/i, '')\n    text = `${text.trimEnd()}\\n\\n${ATTACH_LINE}`\n  }\n  return `${text}\\n\\n${SIGNATURE}`\n}\nconst rows = []\nconst failed = []\n\n$input.all().forEach((item, i) => {\n  const p = plan[i]\n  if (!p) return\n  const res = item.json || {}\n  try {\n    const out = parseJson(res.choices[0].message.content)\n    let subject = String(out.subject || '').replace(/\\s+/g, ' ').trim().slice(0, 120)\n    let body = String(out.body || '').replace(/\\r\\n/g, '\\n').trim()\n    // Follow-ups go out as replies in the original Gmail thread, so keep the original subject.\n    if (p.kind === 'followup') subject = p.fallback_subject\n    if (!subject || body.length < 40) throw new Error('empty subject or body')\n    if (p.channel === 'email') body = finishEmail(body, p.kind)\n    rows.push({ lead_id: p.lead_id, subject, body, status: 'pending_review', sequence_step: p.sequence_step, channel: p.channel })\n  } catch (e) {\n    const reason = res.error ? errorText(res.error) : String(e.message || e)\n    failed.push({ lead: p.lead_id, kind: p.kind, message: `Draft failed: ${reason.slice(0, 200)}` })\n  }\n})\n\nreturn [{ json: { rows, drafted: rows.length, failed } }]\n"
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000078",
+      "id": "b3a5e7c1-0000-4000-8000-000000000080",
       "name": "Any drafts?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -344,7 +356,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000077",
+              "id": "1f0c0d00-0000-4000-8000-000000000079",
               "leftValue": "={{ $json.rows.length > 0 }}",
               "rightValue": "",
               "operator": {
@@ -360,7 +372,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000079",
+      "id": "b3a5e7c1-0000-4000-8000-000000000081",
       "name": "Queue for review",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -404,7 +416,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000080",
+      "id": "b3a5e7c1-0000-4000-8000-000000000082",
       "name": "Run summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -418,7 +430,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000081",
+      "id": "b3a5e7c1-0000-4000-8000-000000000083",
       "name": "Write run log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
