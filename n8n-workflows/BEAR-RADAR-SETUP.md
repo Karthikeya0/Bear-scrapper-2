@@ -70,7 +70,12 @@ If any node is red, open it, copy the error, and send it to me.
 4. Dashboard → Settings → Integrations → Re-check: `wf3-outreach`, `approve-and-send`, `wf4-reply-monitor` show **Ready**.
 5. Outreach queue → **Draft new emails**. The **Pipeline** box says how many leads are ready and, if none, exactly why.
 
-## Settings you can change (Config node — no code)
+## Settings you can change
+**Use the dashboard's Settings page** for the minimum score, drafts per run, follow-up days, DMs, daily limit,
+send window, time zone, weekends, signature and From name. WF-2, WF-3 and WF-3b read them at the start of every run
+(nodes "Load dashboard settings" → "Settings"), so you never need to re-import a workflow to change them.
+The Config node values below are the defaults used until you save the Settings page (and for anything invalid).
+
 | Setting | Default | Meaning |
 |---|---|---|
 | `lookback_days` (WF-1) | 7 | How far back to look on HN / Product Hunt / BetaList |
@@ -81,7 +86,7 @@ If any node is red, open it, copy the error, and send it to me.
 | `batch_size` (WF-2) | 25 | Raw leads checked per run — lower it to save Hunter credits |
 | `min_score` (WF-2, WF-3) | 60 | AI score needed for WF-3 to draft an email |
 | `groq_model` (WF-2, WF-3) | openai/gpt-oss-120b | Groq model. llama-3.3-70b-versatile was retired by Groq on 16 Aug 2026 |
-| `batch_size` (WF-3) | 10 | Drafts written per run (Groq calls are spaced 2.5 s apart and retried on rate limits) |
+| `batch_size` (WF-3) | 10 | Drafts written per run, one at a time — each is saved the moment Groq writes it (retried on errors) |
 | `follow_up_days` (WF-3) | 4,7 | Days to wait before follow-up 2, then follow-up 3. `4` = one follow-up only |
 | `draft_dms` (WF-3) | true | Also draft X/LinkedIn DMs for good leads without an email |
 | `daily_max`, `send_window_start`/`end`, `send_on_weekends`, `timezone` (WF-3b) | 20, 9, 18, false, Asia/Kolkata | Limits for bulk-approved emails ("Approve & send" on one email always sends right away) |

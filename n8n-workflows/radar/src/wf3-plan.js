@@ -5,7 +5,7 @@
 //   3. DM          – qualified leads with no email but an X or LinkedIn profile
 // Output: one item per draft with the Groq prompt ready (system + user) and the row fields to save.
 
-const cfg = $('Config').first().json
+const cfg = $('Settings').first().json
 const MAX = Number(cfg.batch_size) || 10
 const FOLLOW_UP_DAYS = String(cfg.follow_up_days || '4,7').split(',').map(n => Number(n.trim())).filter(n => n > 0)
 const MAX_STEP = 1 + FOLLOW_UP_DAYS.length

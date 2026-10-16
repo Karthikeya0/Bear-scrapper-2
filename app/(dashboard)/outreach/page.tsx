@@ -7,7 +7,8 @@ import { useToast } from '@/components/Toast'
 import { Alert, Badge, EmptyState, PageHeader, ScoreBadge, Spinner, StatusBadge } from '@/components/ui'
 import { IconBolt, IconCheck, IconChevronLeft, IconChevronRight, IconExternal, IconMail, IconMessage, IconRefresh, IconSend, IconX } from '@/components/icons'
 import { formatDateTime, timeAgo } from '@/lib/format'
-import { MIN_SCORE, scoringFailed } from '@/lib/outreach'
+import { scoringFailed } from '@/lib/outreach'
+import { DEFAULT_SETTINGS, loadSettings } from '@/lib/settings'
 import { triggerWorkflow } from '@/lib/workflows'
 import { markStarted } from '@/lib/activity'
 
@@ -34,7 +35,7 @@ type Pipeline = {
 }
 
 const POLL_MS = 3000
-const RUN_TIMEOUT_MS = 4 * 60 * 1000
+const RUN_TIMEOUT_MS = 15 * 60 * 1000
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'pending_review', label: 'Needs review' },
@@ -55,6 +56,13 @@ function kindLabel(item: QueueItem) {
 /** Best human label for a draft's lead: name, else company, else the email's local part. */
 function leadName(item: QueueItem) {
   return item.lead?.name || item.lead?.company || item.lead?.email?.split('@')[0] || 'Unknown lead'
+}
+
+const AVATAR_COLORS = ['#6366f1', '#0ea5e9', '#14b8a6', '#f59e0b', '#ec4899', '#8b5cf6', '#22c55e', '#ef4444']
+function avatarColor(name: string) {
+  let h = 0
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]
 }
 
 function safeHttpUrl(value: string | null | undefined) {
@@ -88,6 +96,7 @@ function OutreachInner() {
   const [pipelineError, setPipelineError] = useState('')
   const [lastRun, setLastRun] = useState<RunLog | null>(null)
   const [bulk, setBulk] = useState<'' | 'schedule' | 'rescore'>('')
+  const [minScore, setMinScore] = useState(DEFAULT_SETTINGS.min_score)
 
   const selected = items.find(i => i.id === selectedId) ?? null
   const dirty = !!selected && (subject !== selected.subject || body !== selected.body)
@@ -132,6 +141,9 @@ function OutreachInner() {
       if (!data || data.length < 1000) break
     }
     const reasons = new Map<string, number>()
+    const { settings } = await loadSettings(supabase)
+    const MIN_SCORE = settings.min_score
+    setMinScore(MIN_SCORE)
     const { count: waiting } = await supabase.from('raw_leads').select('id', { count: 'exact', head: true }).eq('status', 'raw')
     const p: Pipeline = { waiting: waiting ?? 0, total: rows.length, failed: 0, failReason: null, low: 0, good: 0, drafted: 0, readyEmail: 0, readyDm: 0, noContact: 0, other: 0 }
     for (const l of rows) {
@@ -249,12 +261,13 @@ function OutreachInner() {
 
   // Open the first draft automatically on wide screens, so the editor is never an empty box.
   useEffect(() => {
-    if (selectedId || !items.length || !window.matchMedia('(min-width: 1001px)').matches) return
+    // (checks `selected`, not the id: after a tab switch the old id is not in the new list)
+    if (selected || !items.length || !window.matchMedia('(min-width: 1001px)').matches) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- pick a default selection once data arrives
     setSelectedId(items[0].id)
     setSubject(items[0].subject)
     setBody(items[0].body)
-  }, [items, selectedId])
+  }, [items, selected])
 
   // J / K (or ↓ / ↑) move between drafts when you are not typing.
   useEffect(() => {
@@ -419,8 +432,8 @@ function OutreachInner() {
 
       {run.phase === 'running' && (
         <Alert tone="info" title="n8n is writing personalised messages…">
-          Groq writes one message per lead (about 3 seconds each). {Math.max(0, counts.pending_review - run.pendingBefore)} new so far — they appear in
-          “Needs review” as soon as the run finishes.
+          Groq writes one message at a time and each one appears below as soon as it is ready —{' '}
+          <strong>{Math.max(0, counts.pending_review - run.pendingBefore)}</strong> so far. Usually a few seconds each; longer when Groq is busy.
         </Alert>
       )}
       {run.phase === 'done' && (
@@ -458,7 +471,7 @@ function OutreachInner() {
               <span><strong>{pipeline.readyEmail}</strong> <span className="muted">ready to email</span></span>
               <span><strong>{pipeline.readyDm}</strong> <span className="muted">ready for a DM</span></span>
               <span><strong>{pipeline.drafted}</strong> <span className="muted">already drafted</span></span>
-              <span><strong>{pipeline.low}</strong> <span className="muted">scored under {MIN_SCORE}</span></span>
+              <span><strong>{pipeline.low}</strong> <span className="muted">scored under {minScore}</span></span>
               {pipeline.failed > 0 && <span><strong style={{ color: 'var(--red-text)' }}>{pipeline.failed}</strong> <span className="muted">scoring failed</span></span>}
               {pipeline.noContact > 0 && (
                 <span>
@@ -482,6 +495,8 @@ function OutreachInner() {
                     ? 'Groq rejected your API key. In n8n → Credentials → “Groq API key”: Name must be Authorization and Value must be “Bearer ” followed by a key from console.groq.com/keys. Save, then click Re-score.'
                     : /decommissioned|model/i.test(pipeline.failReason ?? '')
                       ? 'That model was retired. Import the latest WF-2 and WF-3 (they use openai/gpt-oss-120b), then click Re-score.'
+                      : /timeout|timed out/i.test(pipeline.failReason ?? '')
+                        ? 'Groq took too long to answer (it was busy). Import the latest WF-2 (it now waits up to 60 seconds), then click Re-score.'
                       : /rate limit|too many|busy/i.test(pipeline.failReason ?? '')
                         ? 'Groq was busy. Wait a minute, then click Re-score (the latest WF-2 also retries automatically).'
                         : 'Fix the problem above in n8n, then click Re-score.'}
@@ -495,7 +510,7 @@ function OutreachInner() {
                   : pipeline.total === 0
                   ? 'No leads yet — run Scrape leads, then Score & enrich on the Workflows page.'
                   : pipeline.good === 0
-                    ? `Nothing to draft: none of your leads scored ${MIN_SCORE}+. Run the scraper for fresh leads, or lower min_score in the WF-2 and WF-3 Config nodes.`
+                    ? `Nothing to draft: none of your leads scored ${minScore}+. Run the scraper for fresh leads, or lower the minimum score in Settings.`
                     : 'Nothing new to draft. Follow-ups for emailed leads are drafted automatically once they are due.'}
               </p>
             )}
@@ -521,7 +536,7 @@ function OutreachInner() {
       {error && <Alert title="Could not load the queue">{error}</Alert>}
       {tab === 'scheduled' && items.length > 0 && (
         <Alert tone="info">
-          WF-3b sends one of these every 10 minutes during your send window, up to your daily limit (set both in the WF-3b Config node).
+          WF-3b sends one of these every 10 minutes during your send window, up to your daily limit (both set in Settings).
           Open one to edit it, send it right now, or move it back to review.
         </Alert>
       )}
@@ -532,177 +547,175 @@ function OutreachInner() {
         </Alert>
       )}
 
-      <div className="inbox">
-        <section className="card inbox-pane" aria-label="Drafts">
-          <div className="inbox-pane-head">
-            <span className="inbox-pane-title">{TABS.find(t => t.key === tab)?.label}</span>
-            <span className="subtle">{items.length} {items.length === 1 ? 'item' : 'items'}</span>
-          </div>
-          <div className="inbox-scroll">
-            {loading && items.length === 0 ? (
-              <div className="list">
-                {[0, 1, 2, 3].map(i => (
-                  <div key={i} className="list-item"><div className="skeleton" style={{ height: 44 }} /></div>
-                ))}
-              </div>
-            ) : items.length === 0 ? (
-              <EmptyState
-                icon={<IconMail />}
-                title={tab === 'pending_review' ? 'Inbox zero' : 'Nothing here'}
-                text={tab === 'pending_review' ? 'No drafts are waiting for review. Draft new emails to keep the pipeline moving.' : 'Nothing in this view yet.'}
-              />
-            ) : (
-              <div className="list" role="listbox" aria-label="Drafts">
-                {items.map(item => (
+      {!loading && items.length === 0 ? (
+        <div className="card review-empty">
+          <EmptyState
+            icon={<IconMail />}
+            title={tab === 'pending_review' ? 'Nothing waiting for review' : `No ${TABS.find(t => t.key === tab)?.label.toLowerCase()} messages`}
+            text={
+              tab === 'pending_review'
+                ? readyTotal > 0
+                  ? `${readyTotal} ${readyTotal === 1 ? 'lead is' : 'leads are'} ready. Draft emails and they will show up here, one card per lead.`
+                  : 'New drafts show up here, one card per lead. Follow-ups are drafted automatically when they are due.'
+                : 'Messages move here as you approve, send or reject them.'
+            }
+            action={
+              tab === 'pending_review' && readyTotal > 0 ? (
+                <button className="btn btn-primary" onClick={generate} disabled={generating || drafting}>
+                  {generating || drafting ? <Spinner /> : <IconBolt className="icon" />} {drafting ? 'Drafting…' : 'Draft new emails'}
+                </button>
+              ) : undefined
+            }
+          />
+        </div>
+      ) : (
+        <div className="review">
+          <div className="queue" role="listbox" aria-label={TABS.find(t => t.key === tab)?.label}>
+            {loading && items.length === 0
+              ? [0, 1, 2].map(i => <div key={i} className="qcard"><div className="skeleton" style={{ height: 64 }} /></div>)
+              : items.map(item => (
                   <button
                     key={item.id}
                     role="option"
                     aria-selected={selectedId === item.id}
                     data-id={item.id}
-                    className={`list-item ${selectedId === item.id ? 'selected' : ''}`}
+                    className={`qcard ${selectedId === item.id ? 'selected' : ''}`}
                     onClick={() => select(item)}
                   >
-                    <div className="row-between">
-                      <div className="cell-title truncate">{leadName(item)}</div>
-                      <span className="subtle" style={{ fontSize: 12, flexShrink: 0 }}>{timeAgo(item.sent_at ?? item.approved_at ?? item.created_at)}</span>
-                    </div>
-                    <div className="row" style={{ marginTop: 2 }}>
-                      <span className="cell-sub truncate" style={{ flex: 1 }}>{item.lead?.company || '—'}</span>
-                      {kindLabel(item)}
-                      <ScoreBadge score={item.lead?.ai_score} />
-                    </div>
-                    <div style={{ fontWeight: 550, fontSize: 13, marginTop: 8 }} className="truncate">{item.subject}</div>
-                    <div className="list-preview">{item.body}</div>
+                    <span className="qcard-avatar" style={{ background: avatarColor(leadName(item)) }} aria-hidden>{leadName(item).slice(0, 1).toUpperCase()}</span>
+                    <span className="qcard-main">
+                      <span className="qcard-top">
+                        <span className="qcard-name truncate">{leadName(item)}</span>
+                        <span className="qcard-time">{timeAgo(item.sent_at ?? item.approved_at ?? item.created_at)}</span>
+                      </span>
+                      <span className="qcard-subject truncate">{isDm(item) ? 'Direct message on X / LinkedIn' : item.subject}</span>
+                      <span className="qcard-tags">
+                        {kindLabel(item)}
+                        <ScoreBadge score={item.lead?.ai_score} />
+                        {item.lead?.company && item.lead?.company !== leadName(item) && <span className="qcard-company truncate">{item.lead.company}</span>}
+                      </span>
+                    </span>
                   </button>
                 ))}
-              </div>
-            )}
           </div>
-        </section>
 
-        <section className="card inbox-pane" id="draft-editor" aria-label="Selected draft">
-          {!selected ? (
-            <EmptyState icon={<IconMail />} title="Select a draft" text="Pick a draft from the list to read, edit and approve it." />
-          ) : (
-            <>
-              <div className="card-head">
-                <div style={{ minWidth: 0 }}>
-                  <div className="card-title truncate">{leadName(selected)}{selected.lead?.company && selected.lead?.name ? <span className="subtle" style={{ fontWeight: 500 }}> · {selected.lead.company}</span> : null}</div>
-                  <div className="card-desc">
-                    {isDm(selected)
-                      ? 'Direct message — no email found, send it yourself on X or LinkedIn'
-                      : (selected.sequence_step ?? 1) > 1
-                        ? `Follow-up ${selected.sequence_step} · goes out as a reply in the same Gmail thread`
-                        : 'First email'}
-                  </div>
-                </div>
-                <div className="row" style={{ flexShrink: 0 }}>
-                  <StatusBadge status={selected.status} />
-                  <div className="pager" role="group" aria-label="Move between drafts">
-                    <button className="icon-btn" onClick={() => step(-1)} disabled={position <= 0} aria-label="Previous draft" title="Previous (K)"><IconChevronLeft /></button>
-                    <span className="pager-count">{position + 1} / {items.length}</span>
-                    <button className="icon-btn" onClick={() => step(1)} disabled={position >= items.length - 1} aria-label="Next draft" title="Next (J)"><IconChevronRight /></button>
-                  </div>
-                </div>
-              </div>
-              <div className="inbox-scroll">
-                <dl className="email-meta">
-                  <dt>To</dt>
-                  <dd>
-                    {isDm(selected) ? (
-                      <span className="row" style={{ gap: 12, flexWrap: 'wrap', display: 'inline-flex' }}>
-                        {selected.lead?.x_handle && (
-                          <a className="link row" style={{ display: 'inline-flex' }} href={`https://x.com/${encodeURIComponent(selected.lead.x_handle)}`} target="_blank" rel="noopener noreferrer">
-                            @{selected.lead.x_handle} on X <IconExternal width={13} height={13} />
-                          </a>
-                        )}
-                        {safeHttpUrl(selected.lead?.linkedin_url) && (
-                          <a className="link row" style={{ display: 'inline-flex' }} href={safeHttpUrl(selected.lead?.linkedin_url)!} target="_blank" rel="noopener noreferrer">
-                            LinkedIn <IconExternal width={13} height={13} />
-                          </a>
-                        )}
-                      </span>
-                    ) : selected.lead?.email ? (
-                      <span className="mono">{selected.lead.email}</span>
-                    ) : (
-                      <span className="overdue">No email address on this lead — add one on the lead page.</span>
-                    )}
-                  </dd>
-                  <dt>Lead</dt>
-                  <dd>
-                    <Link href={`/leads/${selected.lead_id}`} className="link">View profile</Link>
-                    {selected.lead?.ai_score != null && <span className="subtle"> · score {selected.lead.ai_score}</span>}
-                  </dd>
-                  {selected.status === 'scheduled' && selected.approved_at && (<><dt>Approved</dt><dd>{formatDateTime(selected.approved_at)} · waiting for its send slot</dd></>)}
-                  {selected.sent_at && (<><dt>Sent</dt><dd>{formatDateTime(selected.sent_at)}</dd></>)}
-                </dl>
-                <div className="card-pad">
-                  {!isDm(selected) && (
-                    <div className="field">
-                      <label className="label" htmlFor="subject">Subject</label>
-                      <input id="subject" className="input" value={subject} onChange={e => setSubject(e.target.value)} disabled={!editable || (selected.sequence_step ?? 1) > 1} maxLength={300} />
+          <section className="card reader" id="draft-editor" aria-label="Selected message">
+            {!selected ? (
+              <EmptyState icon={<IconMail />} title="Pick a message" text="Choose a card on the left to read, edit and approve it." />
+            ) : (
+              <>
+                <header className="reader-head">
+                  <span className="qcard-avatar lg" style={{ background: avatarColor(leadName(selected)) }} aria-hidden>{leadName(selected).slice(0, 1).toUpperCase()}</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="reader-name truncate">
+                      {leadName(selected)}
+                      {selected.lead?.company && selected.lead.company !== leadName(selected) && <span className="subtle" style={{ fontWeight: 500 }}> · {selected.lead.company}</span>}
                     </div>
+                    <div className="reader-sub">
+                      {isDm(selected) ? (
+                        <span className="row" style={{ gap: 10, flexWrap: 'wrap', display: 'inline-flex' }}>
+                          <span>DM — send it yourself:</span>
+                          {selected.lead?.x_handle && (
+                            <a className="link" href={`https://x.com/${encodeURIComponent(selected.lead.x_handle)}`} target="_blank" rel="noopener noreferrer">
+                              @{selected.lead.x_handle} on X <IconExternal width={12} height={12} />
+                            </a>
+                          )}
+                          {safeHttpUrl(selected.lead?.linkedin_url) && (
+                            <a className="link" href={safeHttpUrl(selected.lead?.linkedin_url)!} target="_blank" rel="noopener noreferrer">
+                              LinkedIn <IconExternal width={12} height={12} />
+                            </a>
+                          )}
+                        </span>
+                      ) : selected.lead?.email ? (
+                        <span className="mono">{selected.lead.email}</span>
+                      ) : (
+                        <span className="overdue">No email address — add one on the lead page.</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="pager" role="group" aria-label="Move between messages">
+                    <button className="icon-btn" onClick={() => step(-1)} disabled={position <= 0} aria-label="Previous" title="Previous (K)"><IconChevronLeft /></button>
+                    <span className="pager-count">{position + 1} / {items.length}</span>
+                    <button className="icon-btn" onClick={() => step(1)} disabled={position >= items.length - 1} aria-label="Next" title="Next (J)"><IconChevronRight /></button>
+                  </div>
+                </header>
+
+                <div className="reader-meta">
+                  <StatusBadge status={selected.status} />
+                  {kindLabel(selected)}
+                  {(selected.sequence_step ?? 1) > 1 && !isDm(selected) && <span className="subtle">Goes out as a reply in the same Gmail thread</span>}
+                  {(selected.sequence_step ?? 1) === 1 && !isDm(selected) && editable && <span className="subtle">One-pager PDF attached automatically</span>}
+                  {selected.status === 'scheduled' && selected.approved_at && <span className="subtle">Approved {formatDateTime(selected.approved_at)} · waiting for its send slot</span>}
+                  {selected.sent_at && <span className="subtle">Sent {formatDateTime(selected.sent_at)}</span>}
+                  <Link href={`/leads/${selected.lead_id}`} className="link reader-profile">Lead profile{selected.lead?.ai_score != null && ` · score ${selected.lead.ai_score}`}</Link>
+                </div>
+
+                <div className="reader-body">
+                  {!isDm(selected) && (
+                    <input
+                      aria-label="Subject"
+                      className="reader-subject"
+                      value={subject}
+                      onChange={e => setSubject(e.target.value)}
+                      disabled={!editable || (selected.sequence_step ?? 1) > 1}
+                      maxLength={300}
+                      placeholder="Subject"
+                    />
                   )}
-                  <div className="field" style={{ marginBottom: 0 }}>
-                    <label className="label" htmlFor="body">Message</label>
-                    <textarea id="body" className="textarea inbox-body" value={body} onChange={e => setBody(e.target.value)} disabled={!editable} />
-                    {editable && <span className="hint">{body.trim().split(/\s+/).filter(Boolean).length} words<span className="kbd-hint"> · J / K to move between drafts</span></span>}
-                  </div>
+                  <textarea aria-label="Message" className="reader-text" value={body} onChange={e => setBody(e.target.value)} disabled={!editable} />
+                  {editable && <div className="hint reader-hint">{body.trim().split(/\s+/).filter(Boolean).length} words · click the text to edit<span className="kbd-hint"> · J / K for next / previous</span></div>}
                 </div>
-              </div>
-              {editable && isDm(selected) && (
-                <div className="drawer-foot inbox-foot">
-                  <button className="btn btn-danger" onClick={() => setStatus('rejected', 'reject', 'Draft rejected.')} disabled={!!busy}>
-                    {busy === 'reject' ? <Spinner /> : <IconX className="icon" />} Reject
-                  </button>
-                  <div className="row">
-                    <button className="btn" onClick={copyDm} disabled={!body.trim()}>
-                      <IconMessage className="icon" /> Copy message
-                    </button>
-                    <button className="btn btn-primary" onClick={markDmSent} disabled={!!busy || !body.trim()}>
-                      {busy === 'dm' ? <Spinner /> : <IconCheck className="icon" />} I sent it
-                    </button>
-                  </div>
-                </div>
-              )}
-              {editable && !isDm(selected) && (
-                <div className="drawer-foot inbox-foot">
-                  {selected.status === 'scheduled' ? (
-                    <button className="btn" onClick={() => setStatus('pending_review', 'requeue', 'Moved back to review.')} disabled={!!busy}>
-                      {busy === 'requeue' && <Spinner />} Back to review
-                    </button>
-                  ) : (
+
+                {editable && isDm(selected) && (
+                  <footer className="reader-foot">
                     <button className="btn btn-danger" onClick={() => setStatus('rejected', 'reject', 'Draft rejected.')} disabled={!!busy}>
                       {busy === 'reject' ? <Spinner /> : <IconX className="icon" />} Reject
                     </button>
-                  )}
-                  <div className="row">
-                    <button className="btn" onClick={saveDraft} disabled={!!busy || !dirty}>
-                      {busy === 'save' && <Spinner />} Save
+                    <div className="row">
+                      <button className="btn" onClick={copyDm} disabled={!body.trim()}><IconMessage className="icon" /> Copy</button>
+                      <button className="btn btn-primary" onClick={markDmSent} disabled={!!busy || !body.trim()}>
+                        {busy === 'dm' ? <Spinner /> : <IconCheck className="icon" />} I sent it
+                      </button>
+                    </div>
+                  </footer>
+                )}
+                {editable && !isDm(selected) && (
+                  <footer className="reader-foot">
+                    {selected.status === 'scheduled' ? (
+                      <button className="btn" onClick={() => setStatus('pending_review', 'requeue', 'Moved back to review.')} disabled={!!busy}>
+                        {busy === 'requeue' && <Spinner />} Back to review
+                      </button>
+                    ) : (
+                      <button className="btn btn-danger" onClick={() => setStatus('rejected', 'reject', 'Draft rejected.')} disabled={!!busy}>
+                        {busy === 'reject' ? <Spinner /> : <IconX className="icon" />} Reject
+                      </button>
+                    )}
+                    <div className="row">
+                      {dirty && (
+                        <button className="btn" onClick={saveDraft} disabled={!!busy}>
+                          {busy === 'save' && <Spinner />} Save edits
+                        </button>
+                      )}
+                      <button className="btn btn-primary" onClick={approve} disabled={!!busy || !subject.trim() || !body.trim() || !selected.lead?.email}>
+                        {busy === 'approve' ? <Spinner /> : <IconSend className="icon" />}
+                        {busy === 'approve' ? 'Sending…' : selected.status === 'scheduled' ? 'Send now' : 'Approve & send'}
+                      </button>
+                    </div>
+                  </footer>
+                )}
+                {(selected.status === 'approved' || selected.status === 'rejected') && (
+                  <footer className="reader-foot">
+                    <span />
+                    <button className="btn" onClick={() => setStatus('pending_review', 'requeue', 'Moved back to review.')} disabled={!!busy}>
+                      {busy === 'requeue' && <Spinner />} Return to review
                     </button>
-                    <button
-                      className="btn btn-primary"
-                      onClick={approve}
-                      disabled={!!busy || !subject.trim() || !body.trim() || !selected.lead?.email}
-                    >
-                      {busy === 'approve' ? <Spinner /> : <IconSend className="icon" />}
-                      {busy === 'approve' ? 'Sending…' : selected.status === 'scheduled' ? 'Send now' : 'Approve & send'}
-                    </button>
-                  </div>
-                </div>
-              )}
-              {(selected.status === 'approved' || selected.status === 'rejected') && (
-                <div className="drawer-foot inbox-foot">
-                  <span />
-                  <button className="btn" onClick={() => setStatus('pending_review', 'requeue', 'Moved back to review.')} disabled={!!busy}>
-                    {busy === 'requeue' && <Spinner />} Return to review
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-      </div>
+                  </footer>
+                )}
+              </>
+            )}
+          </section>
+        </div>
+      )}
     </>
   )
 }

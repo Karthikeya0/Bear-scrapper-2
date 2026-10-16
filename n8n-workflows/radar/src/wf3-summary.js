@@ -3,8 +3,13 @@
 // nothing is sent until you approve a draft in the dashboard).
 
 const cfg = $('Config').first().json
-// Build drafts does not run when there was nothing to draft.
-const built = $('Build drafts').isExecuted ? $('Build drafts').first().json : { drafted: 0, failed: [] }
+// Input: every per-draft result collected by the "One at a time" loop (or the single empty plan item when
+// there was nothing to draft).
+const built = { drafted: 0, failed: [] }
+for (const { json } of $input.all()) {
+  built.drafted += Number(json.drafted) || 0
+  if (Array.isArray(json.failed)) built.failed.push(...json.failed)
+}
 
 return [{
   json: {

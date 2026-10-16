@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Alert, EmptyState, PageHeader } from '@/components/ui'
 import { IconChart, IconRefresh } from '@/components/icons'
-import { MIN_SCORE } from '@/lib/outreach'
+import { DEFAULT_SETTINGS, loadSettings } from '@/lib/settings'
 
 type Lead = { id: string; source: string | null; status: string; email: string | null; ai_score: number | null; replied_at: string | null }
 type Sent = { lead_id: string; channel: string | null; sequence_step: number | null; sent_at: string | null }
@@ -40,16 +40,19 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [loadedAt, setLoadedAt] = useState(0)
+  const [minScore, setMinScore] = useState(DEFAULT_SETTINGS.min_score)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [l, s] = await Promise.all([
+      const [l, s, cfg] = await Promise.all([
         fetchAll<Lead>((a, b) => supabase.from('leads').select('id, source, status, email, ai_score, replied_at').range(a, b)),
         fetchAll<Sent>((a, b) =>
           supabase.from('outreach_queue').select('lead_id, channel, sequence_step, sent_at').eq('status', 'sent').range(a, b),
         ),
+        loadSettings(supabase),
       ])
+      setMinScore(cfg.settings.min_score)
       setLeads(l)
       setSent(s)
       setLoadedAt(Date.now())
@@ -81,7 +84,7 @@ export default function ResultsPage() {
     const ls = leads.filter(l => (l.source ?? 'unknown') === src)
     const c = ls.filter(l => CONTACTED.has(l.status)).length
     const r = ls.filter(l => REPLIED.has(l.status)).length
-    return { src, total: ls.length, good: ls.filter(l => (l.ai_score ?? 0) >= MIN_SCORE).length, withEmail: ls.filter(l => l.email).length, contacted: c, replied: r }
+    return { src, total: ls.length, good: ls.filter(l => (l.ai_score ?? 0) >= minScore).length, withEmail: ls.filter(l => l.email).length, contacted: c, replied: r }
   }).sort((a, b) => b.replied - a.replied || b.contacted - a.contacted || b.total - a.total)
 
   const thisWeek = weekStart(new Date(loadedAt))
@@ -139,7 +142,7 @@ export default function ResultsPage() {
             <div className="table-wrap">
               <table className="table">
                 <thead>
-                  <tr><th>Source</th><th className="t-right">Leads</th><th className="t-right">Score {MIN_SCORE}+</th><th className="t-right">With email</th><th className="t-right">Contacted</th><th className="t-right">Replied</th><th className="t-right">Reply rate</th></tr>
+                  <tr><th>Source</th><th className="t-right">Leads</th><th className="t-right">Score {minScore}+</th><th className="t-right">With email</th><th className="t-right">Contacted</th><th className="t-right">Replied</th><th className="t-right">Reply rate</th></tr>
                 </thead>
                 <tbody>
                   {bySource.map(r => (

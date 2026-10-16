@@ -3,7 +3,7 @@
 // Output: exactly the columns of public.leads (extra keys would make the insert fail).
 
 const lead = $('Pick founder email').item.json
-const cfg = $('Config').first().json
+const cfg = $('Settings').first().json
 const MIN_SCORE = Number(cfg.min_score) || 60
 
 // The model is asked for JSON only; take the first {...} block in case it adds any text around it.

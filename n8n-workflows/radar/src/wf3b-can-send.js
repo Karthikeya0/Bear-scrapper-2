@@ -3,7 +3,7 @@
 // (Config timezone) and while today's sent count is under daily_max. Emails approved one by
 // one in the dashboard skip this and go out immediately.
 
-const cfg = $('Config').first().json
+const cfg = $('Settings').first().json
 const tz = cfg.timezone || 'UTC'
 const parts = Object.fromEntries(
   new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23', weekday: 'short' })

@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { loadSettings } from '@/lib/settings'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/Toast'
 import { Alert, EmptyState, PageHeader, ScoreBadge, Spinner, StatusBadge } from '@/components/ui'
@@ -19,7 +20,6 @@ type Lead = {
 type History = { id: string; subject: string | null; body_sent: string | null; body: string | null; sequence_step: number | null; sent_at: string | null }
 type Sequence = { id: string; sequence_step: number | null; step: number | null; template_key: string | null; send_at: string; sent: boolean | null; cancelled: boolean | null }
 
-const MIN_SCORE = 60
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 const STATUS_FLOW = ['scored', 'contacted', 'replied', 'converted', 'dead', 'bounced', 'unsubscribed', 'disqualified']
@@ -112,7 +112,8 @@ export default function LeadDetailPage() {
     if (email && !EMAIL_RE.test(email)) return toast.error('That does not look like an email address.')
     setSavingEmail(true)
     const fields: Partial<Lead> = { email: email || null }
-    if (email && (lead.ai_score ?? 0) >= MIN_SCORE) fields.outreach_eligible = true
+    const { settings } = await loadSettings(supabase)
+    if (email && (lead.ai_score ?? 0) >= settings.min_score) fields.outreach_eligible = true
     await update(fields, email ? 'Email saved. This lead will be drafted on the next “Draft new emails” run.' : 'Email removed.')
     setSavingEmail(false)
   }
@@ -330,7 +331,7 @@ export default function LeadDetailPage() {
               />
               Eligible for AI-drafted emails
             </label>
-            <p className="hint" style={{ marginTop: 8 }}>WF-3 only drafts emails for eligible leads with an email and a score of {MIN_SCORE}+.</p>
+            <p className="hint" style={{ marginTop: 8 }}>WF-3 only drafts emails for eligible leads with an email and a score at or above your minimum (Settings).</p>
           </div>
 
           <div className="card card-pad">

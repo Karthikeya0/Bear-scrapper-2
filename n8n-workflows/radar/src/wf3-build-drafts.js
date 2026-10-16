@@ -1,5 +1,5 @@
 // WF-3 "Build drafts" (Code node, Run Once for All Items).
-// Input: one Groq response per planned draft, in the same order as "Plan drafts".
+// Input: the Groq response(s) for the current loop batch (one draft at a time); each is matched back to its "Plan drafts" item.
 // Output: ONE item { rows: [...outreach_queue rows], drafted, failed: [...] }.
 
 // The model is asked for JSON only; take the first {...} block in case it adds any text around it.
@@ -14,8 +14,15 @@ const errorText = err => {
   return (text.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/) || [])[1] || text
 }
 
-const cfg = $('Config').first().json
+const cfg = $('Settings').first().json
 const plan = $('Plan drafts').all().map(i => i.json)
+const planFor = i => {
+  try {
+    return $('Plan drafts').itemMatching(i).json
+  } catch {
+    return plan[i]
+  }
+}
 
 // One fixed, professional ending for every email (the model is told not to write its own).
 const SIGNATURE = [cfg.sign_off || 'Cheers,', cfg.sender_name || 'Karthikeya Popuri', cfg.company_name || 'Bear Studios', cfg.website || 'bearstudios.in']
@@ -48,7 +55,7 @@ const rows = []
 const failed = []
 
 $input.all().forEach((item, i) => {
-  const p = plan[i]
+  const p = planFor(i)
   if (!p) return
   const res = item.json || {}
   try {

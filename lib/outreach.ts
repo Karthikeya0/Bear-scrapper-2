@@ -1,7 +1,4 @@
-/** Shared outreach rules, used by the dashboard and API routes (the n8n Config nodes hold the same defaults). */
-
-/** WF-3 only drafts for leads at or above this AI score. */
-export const MIN_SCORE = 60
+/** Shared outreach rules, used by the dashboard and API routes. The minimum score lives in lib/settings.ts. */
 
 /** WF-2 saves a lead with score 0 and one of these reasons when its Groq call fails (e.g. rate limit). */
 export const FAILED_SCORING_PATTERNS = ['Groq error:%', 'Could not parse AI score%']

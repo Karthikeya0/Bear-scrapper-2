@@ -148,7 +148,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        460,
+        900,
         100
       ],
       "parameters": {
@@ -179,7 +179,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        680,
+        1120,
         100
       ],
       "parameters": {
@@ -193,7 +193,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        900,
+        1340,
         360
       ],
       "parameters": {
@@ -207,7 +207,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1120,
+        1560,
         360
       ],
       "parameters": {
@@ -250,7 +250,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        900,
+        1340,
         100
       ],
       "parameters": {
@@ -283,7 +283,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1010,
+        1450,
         -60
       ],
       "parameters": {
@@ -316,7 +316,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1120,
+        1560,
         0
       ],
       "parameters": {
@@ -360,7 +360,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1340,
+        1780,
         0
       ],
       "parameters": {
@@ -374,14 +374,14 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1560,
+        2000,
         0
       ],
       "parameters": {
         "method": "POST",
         "url": "={{ $('Config').first().json.groq_url }}",
         "options": {
-          "timeout": 30000,
+          "timeout": 60000,
           "response": {
             "response": {
               "responseFormat": "json"
@@ -418,12 +418,12 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1780,
+        2220,
         0
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// WF-2 \"Build lead row\" (Code node, Run Once for Each Item).\n// Input: Groq chat-completion response for one qualified lead (with or without an email).\n// Output: exactly the columns of public.leads (extra keys would make the insert fail).\n\nconst lead = $('Pick founder email').item.json\nconst cfg = $('Config').first().json\nconst MIN_SCORE = Number(cfg.min_score) || 60\n\n// The model is asked for JSON only; take the first {...} block in case it adds any text around it.\nconst parseJson = text => {\n  const raw = String(text || '').trim()\n  const block = raw.match(/\\{[\\s\\S]*\\}/)\n  return JSON.parse(block ? block[0] : raw)\n}\n// n8n reports API errors as '400 - {\"error\":{\"message\":\"...\"}}'; keep the readable part.\nconst errorText = err => {\n  const text = String((err && err.message) || err || 'unknown error')\n  return (text.match(/\"message\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"/) || [])[1] || text\n}\n\nlet scoring = {}\ntry {\n  scoring = parseJson($json.choices[0].message.content)\n} catch {\n  scoring = { score: null, reasoning: $json.error ? `Groq error: ${errorText($json.error).slice(0, 200)}` : 'Could not parse AI score', signals: [], hook: null }\n}\nconst aiScore = Number.isFinite(Number(scoring.score)) ? Math.max(0, Math.min(100, Math.round(Number(scoring.score)))) : 0\n\nreturn {\n  json: {\n    raw_lead_id: lead.id,\n    name: lead.name,\n    email: lead.email,\n    company: lead.company,\n    company_domain: lead.company_domain,\n    website: lead.website,\n    source: lead.source,\n    source_id: lead.source_id,\n    profile_url: lead.profile_url,\n    bio: lead.bio,\n    post_content: lead.post_content,\n    x_handle: lead.x_handle,\n    linkedin_url: lead.linkedin_url,\n    launched_at: lead.launched_at,\n    team_size: lead.team_size,\n    domain_created_at: lead.domain_created_at,\n    has_video: lead.has_video,\n    signals: lead.signals || [],\n    founder_role: lead.founder_role,\n    ai_score: aiScore,\n    ai_reasoning: [scoring.reasoning, scoring.hook ? `Hook: ${scoring.hook}` : null].filter(Boolean).join('\\n') || null,\n    ai_signals: Array.isArray(scoring.signals) ? scoring.signals.map(String).slice(0, 8) : [],\n    status: 'scored',\n    // WF-3 only drafts emails for eligible leads; low scores and leads without an email stay visible but are not emailed.\n    outreach_eligible: aiScore >= MIN_SCORE && !!lead.email,\n  },\n}\n"
+        "jsCode": "// WF-2 \"Build lead row\" (Code node, Run Once for Each Item).\n// Input: Groq chat-completion response for one qualified lead (with or without an email).\n// Output: exactly the columns of public.leads (extra keys would make the insert fail).\n\nconst lead = $('Pick founder email').item.json\nconst cfg = $('Settings').first().json\nconst MIN_SCORE = Number(cfg.min_score) || 60\n\n// The model is asked for JSON only; take the first {...} block in case it adds any text around it.\nconst parseJson = text => {\n  const raw = String(text || '').trim()\n  const block = raw.match(/\\{[\\s\\S]*\\}/)\n  return JSON.parse(block ? block[0] : raw)\n}\n// n8n reports API errors as '400 - {\"error\":{\"message\":\"...\"}}'; keep the readable part.\nconst errorText = err => {\n  const text = String((err && err.message) || err || 'unknown error')\n  return (text.match(/\"message\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"/) || [])[1] || text\n}\n\nlet scoring = {}\ntry {\n  scoring = parseJson($json.choices[0].message.content)\n} catch {\n  scoring = { score: null, reasoning: $json.error ? `Groq error: ${errorText($json.error).slice(0, 200)}` : 'Could not parse AI score', signals: [], hook: null }\n}\nconst aiScore = Number.isFinite(Number(scoring.score)) ? Math.max(0, Math.min(100, Math.round(Number(scoring.score)))) : 0\n\nreturn {\n  json: {\n    raw_lead_id: lead.id,\n    name: lead.name,\n    email: lead.email,\n    company: lead.company,\n    company_domain: lead.company_domain,\n    website: lead.website,\n    source: lead.source,\n    source_id: lead.source_id,\n    profile_url: lead.profile_url,\n    bio: lead.bio,\n    post_content: lead.post_content,\n    x_handle: lead.x_handle,\n    linkedin_url: lead.linkedin_url,\n    launched_at: lead.launched_at,\n    team_size: lead.team_size,\n    domain_created_at: lead.domain_created_at,\n    has_video: lead.has_video,\n    signals: lead.signals || [],\n    founder_role: lead.founder_role,\n    ai_score: aiScore,\n    ai_reasoning: [scoring.reasoning, scoring.hook ? `Hook: ${scoring.hook}` : null].filter(Boolean).join('\\n') || null,\n    ai_signals: Array.isArray(scoring.signals) ? scoring.signals.map(String).slice(0, 8) : [],\n    status: 'scored',\n    // WF-3 only drafts emails for eligible leads; low scores and leads without an email stay visible but are not emailed.\n    outreach_eligible: aiScore >= MIN_SCORE && !!lead.email,\n  },\n}\n"
       }
     },
     {
@@ -432,7 +432,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2000,
+        2440,
         0
       ],
       "parameters": {
@@ -476,7 +476,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2220,
+        2660,
         0
       ],
       "parameters": {
@@ -519,7 +519,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1780,
+        2220,
         260
       ],
       "parameters": {
@@ -555,6 +555,53 @@
           "name": "Supabase account"
         }
       }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000055",
+      "name": "Load dashboard settings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/settings?key=eq.outreach&select=value",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000056",
+      "name": "Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"min_score\":\"min_score\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
+      }
     }
   ],
   "connections": {
@@ -584,7 +631,7 @@
       "main": [
         [
           {
-            "node": "Fetch raw leads",
+            "node": "Load dashboard settings",
             "type": "main",
             "index": 0
           }
@@ -714,6 +761,28 @@
         [
           {
             "node": "Mark processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Fetch raw leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load dashboard settings": {
+      "main": [
+        [
+          {
+            "node": "Settings",
             "type": "main",
             "index": 0
           }

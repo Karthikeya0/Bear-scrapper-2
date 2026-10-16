@@ -2,7 +2,7 @@
   "name": "WF-4: Reply Monitor",
   "nodes": [
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000123",
+      "id": "b3a5e7c1-0000-4000-8000-000000000131",
       "name": "Every 30 minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000125",
+      "id": "b3a5e7c1-0000-4000-8000-000000000133",
       "name": "Dashboard: Check replies",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -37,7 +37,7 @@
         "responseMode": "onReceived",
         "options": {}
       },
-      "webhookId": "7e1f0b2a-0000-4000-8000-000000000124",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000132",
       "credentials": {
         "httpHeaderAuth": {
           "id": "bearDashboardSecret",
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000129",
+      "id": "b3a5e7c1-0000-4000-8000-000000000137",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -59,19 +59,19 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c0f19a00-0000-4000-8000-000000000126",
+              "id": "c0f19a00-0000-4000-8000-000000000134",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT-REF.supabase.co",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000127",
+              "id": "c0f19a00-0000-4000-8000-000000000135",
               "name": "lookback_days",
               "value": 3,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000128",
+              "id": "c0f19a00-0000-4000-8000-000000000136",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -83,7 +83,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000130",
+      "id": "b3a5e7c1-0000-4000-8000-000000000138",
       "name": "Gmail: recent inbox",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -113,7 +113,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000131",
+      "id": "b3a5e7c1-0000-4000-8000-000000000139",
       "name": "Sent threads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -145,7 +145,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000132",
+      "id": "b3a5e7c1-0000-4000-8000-000000000140",
       "name": "Contacted leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -177,7 +177,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000133",
+      "id": "b3a5e7c1-0000-4000-8000-000000000141",
       "name": "Find replies & bounces",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -192,7 +192,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000135",
+      "id": "b3a5e7c1-0000-4000-8000-000000000143",
       "name": "Anything found?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -209,7 +209,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000134",
+              "id": "1f0c0d00-0000-4000-8000-000000000142",
               "leftValue": "={{ !!$json.lead_id }}",
               "rightValue": "",
               "operator": {
@@ -225,7 +225,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000136",
+      "id": "b3a5e7c1-0000-4000-8000-000000000144",
       "name": "Update lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -268,7 +268,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000137",
+      "id": "b3a5e7c1-0000-4000-8000-000000000145",
       "name": "Cancel follow-ups",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -311,7 +311,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000138",
+      "id": "b3a5e7c1-0000-4000-8000-000000000146",
       "name": "Run summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -325,7 +325,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000139",
+      "id": "b3a5e7c1-0000-4000-8000-000000000147",
       "name": "Write run log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

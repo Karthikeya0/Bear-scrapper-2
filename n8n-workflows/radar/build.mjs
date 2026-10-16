@@ -242,6 +242,8 @@ function buildWf2() {
       method: 'POST',
       url: "={{ $('Config').first().json.groq_url }}",
       auth: { header: CRED.groq },
+      // gpt-oss can take >30s when Groq is busy; a timeout here used to fail the lead.
+      timeout: 60000,
       batching: { batchSize: 1, batchInterval: 2500 },
       body:
         "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.2, max_completion_tokens: 2048, ...(String($('Config').first().json.groq_model).startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}), messages: [ { role: 'system', content: " +
@@ -325,13 +327,13 @@ function buildWf3() {
     http('Fetch leads to draft', [460, 100], {
       url:
         `=${SB}/rest/v1/leads?select=*,outreach_queue(id)&outreach_queue=is.null&status=eq.scored&outreach_eligible=eq.true` +
-        "&email=not.is.null&ai_score=gte.{{ $('Config').first().json.min_score }}&order=ai_score.desc&limit={{ $('Config').first().json.batch_size }}",
+        "&email=not.is.null&ai_score=gte.{{ $('Settings').first().json.min_score }}&order=ai_score.desc&limit={{ $('Settings').first().json.batch_size }}",
       auth: { supabase: true },
     }, once),
     http('Fetch DM leads', [680, 100], {
       url:
         `=${SB}/rest/v1/leads?select=*,outreach_queue(id)&outreach_queue=is.null&status=eq.scored&email=is.null` +
-        "&or=(x_handle.not.is.null,linkedin_url.not.is.null)&ai_score=gte.{{ $('Config').first().json.min_score }}&order=ai_score.desc&limit={{ $('Config').first().json.batch_size }}",
+        "&or=(x_handle.not.is.null,linkedin_url.not.is.null)&ai_score=gte.{{ $('Settings').first().json.min_score }}&order=ai_score.desc&limit={{ $('Settings').first().json.batch_size }}",
       auth: { supabase: true },
     }, once),
     http('Fetch follow-ups', [900, 100], {
@@ -342,20 +344,20 @@ function buildWf3() {
     }, once),
     code('Plan drafts', [1120, 100], 'wf3-plan.js'),
     ifTrue('Anything to draft?', [1340, 100], '={{ !!$json.lead_id }}'),
-    http('Groq: write message', [1560, 0], {
+    // One draft at a time: each is saved as soon as Groq writes it, so drafts appear in the dashboard live.
+    node('One at a time', 'n8n-nodes-base.splitInBatches', 3, [1560, 100], { batchSize: 1, options: {} }),
+    http('Groq: write message', [1780, 0], {
       method: 'POST',
       url: "={{ $('Config').first().json.groq_url }}",
       auth: { header: CRED.groq },
-      timeout: 60000,
-      // One request every 2.5s keeps a batch inside Groq's free-tier rate limits.
-      batching: { batchSize: 1, batchInterval: 2500 },
+      timeout: 45000,
       body:
         "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.6, max_completion_tokens: 2048, ...(String($('Config').first().json.groq_model).startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}), " +
         "messages: [ { role: 'system', content: $json.system }, { role: 'user', content: $json.user } ] }) }}",
     }, { ...CONTINUE, ...RETRY }),
-    code('Build drafts', [1780, 0], 'wf3-build-drafts.js'),
-    ifTrue('Any drafts?', [2000, 0], '={{ $json.rows.length > 0 }}'),
-    http('Queue for review', [2220, -100], {
+    code('Build drafts', [2000, 0], 'wf3-build-drafts.js'),
+    ifTrue('Any drafts?', [2220, 0], '={{ $json.rows.length > 0 }}'),
+    http('Queue for review', [2440, -100], {
       method: 'POST',
       url: `=${SB}/rest/v1/outreach_queue`,
       auth: { supabase: true },
@@ -363,8 +365,12 @@ function buildWf3() {
       headers: [['Prefer', 'return=minimal']],
       body: '={{ JSON.stringify($json.rows) }}',
     }, { alwaysOutputData: true }),
-    code('Run summary', [2440, 100], 'wf3-summary.js'),
-    http('Write run log', [2660, 100], {
+    node('Next draft', 'n8n-nodes-base.code', 2, [2660, -100], {
+      mode: 'runOnceForAllItems',
+      jsCode: "// Hand this draft's result back to the loop (Run summary adds them up).\nreturn [{ json: $('Build drafts').first().json }]\n",
+    }),
+    code('Run summary', [2000, 260], 'wf3-summary.js'),
+    http('Write run log', [2220, 260], {
       method: 'POST',
       url: `=${SB}/rest/v1/workflow_logs`,
       auth: { supabase: true },
@@ -383,13 +389,16 @@ function buildWf3() {
   link(c, 'Fetch DM leads', 'Fetch follow-ups')
   link(c, 'Fetch follow-ups', 'Plan drafts')
   link(c, 'Plan drafts', 'Anything to draft?')
-  link(c, 'Anything to draft?', 'Groq: write message', 0)
+  link(c, 'Anything to draft?', 'One at a time', 0)
   link(c, 'Anything to draft?', 'Run summary', 1)
+  link(c, 'One at a time', 'Run summary', 0) // "done": all per-draft results
+  link(c, 'One at a time', 'Groq: write message', 1) // "loop": the next draft
   link(c, 'Groq: write message', 'Build drafts')
   link(c, 'Build drafts', 'Any drafts?')
   link(c, 'Any drafts?', 'Queue for review', 0)
-  link(c, 'Any drafts?', 'Run summary', 1)
-  link(c, 'Queue for review', 'Run summary')
+  link(c, 'Any drafts?', 'One at a time', 1)
+  link(c, 'Queue for review', 'Next draft')
+  link(c, 'Next draft', 'One at a time')
   link(c, 'Run summary', 'Write run log')
   return { name: 'WF-3: Draft Outreach', nodes, connections: c, settings: { executionOrder: 'v1' }, pinData: {} }
 }
@@ -404,7 +413,7 @@ function buildWf3b() {
   const Q = "$('Fetch approved email').first().json"
   const once = { executeOnce: true, alwaysOutputData: true }
   const gmailCred = { credentials: { gmailOAuth2: { id: 'bearGmail', name: 'Gmail account' } }, ...CONTINUE }
-  const gmailOptions = { appendAttribution: false, senderName: "={{ $('Config').first().json.sender_name }}" }
+  const gmailOptions = { appendAttribution: false, senderName: "={{ $('Settings').first().json.sender_name }}" }
   const nodes = [
     webhook('Dashboard: Approve & send', [0, 0], 'approve-and-send'),
     schedule('Every 10 minutes', [0, 240], { field: 'minutes', minutesInterval: 10 }),
@@ -423,7 +432,7 @@ function buildWf3b() {
     http('Sent today', [660, 240], {
       url:
         `=${SB}/rest/v1/outreach_queue?select=id&status=eq.sent&channel=eq.email` +
-        "&sent_at=gte.{{ encodeURIComponent($now.setZone($('Config').first().json.timezone).startOf('day').toUTC().toISO()) }}",
+        "&sent_at=gte.{{ encodeURIComponent($now.setZone($('Settings').first().json.timezone).startOf('day').toUTC().toISO()) }}",
       auth: { supabase: true },
     }, once),
     http('Next scheduled', [880, 240], {
@@ -646,11 +655,47 @@ function buildWf4() {
   return { name: 'WF-4: Reply Monitor', nodes, connections: c, settings: { executionOrder: 'v1' }, pinData: {} }
 }
 
+// Dashboard Settings page -> Config keys, per workflow (see src/settings.js).
+const SETTINGS_MAP = {
+  wf2: { min_score: 'min_score' },
+  wf3: {
+    min_score: 'min_score', drafts_per_run: 'batch_size', follow_up_days: 'follow_up_days', draft_dms: 'draft_dms',
+    sign_off: 'sign_off', signature_name: 'sender_name', company_name: 'company_name', website: 'website',
+  },
+  wf3b: {
+    from_name: 'sender_name', daily_max: 'daily_max', send_window_start: 'send_window_start', send_window_end: 'send_window_end',
+    send_on_weekends: 'send_on_weekends', timezone: 'timezone',
+  },
+}
+
+/** Config -> Load dashboard settings -> Settings -> (whatever Config fed before). Later nodes read $('Settings'). */
+function withDashboardSettings(wf, map) {
+  const cfg = wf.nodes.find(n => n.name === 'Config')
+  const [x, y] = cfg.position
+  for (const n of wf.nodes) if (n.position[0] > x) n.position = [n.position[0] + 440, n.position[1]]
+  wf.nodes.push(
+    http('Load dashboard settings', [x + 220, y], {
+      url: `=${SB}/rest/v1/settings?key=eq.outreach&select=value`,
+      auth: { supabase: true },
+      timeout: 15000,
+    }, { executeOnce: true, alwaysOutputData: true, ...CONTINUE }),
+    node('Settings', 'n8n-nodes-base.code', 2, [x + 440, y], {
+      mode: 'runOnceForAllItems',
+      jsCode: src('settings.js').replace('const MAP = {}', `const MAP = ${JSON.stringify(map)}`),
+    }),
+  )
+  const c = wf.connections
+  c.Settings = c.Config
+  c.Config = { main: [[{ node: 'Load dashboard settings', type: 'main', index: 0 }]] }
+  c['Load dashboard settings'] = { main: [[{ node: 'Settings', type: 'main', index: 0 }]] }
+  return wf
+}
+
 for (const [file, wf] of [
   ['WF1-lead-radar-sources.json', buildWf1()],
-  ['WF2-qualify-enrich.json', buildWf2()],
-  ['WF3-draft-outreach.json', buildWf3()],
-  ['WF3b-send-approved.json', buildWf3b()],
+  ['WF2-qualify-enrich.json', withDashboardSettings(buildWf2(), SETTINGS_MAP.wf2)],
+  ['WF3-draft-outreach.json', withDashboardSettings(buildWf3(), SETTINGS_MAP.wf3)],
+  ['WF3b-send-approved.json', withDashboardSettings(buildWf3b(), SETTINGS_MAP.wf3b)],
   ['WF4-reply-monitor.json', buildWf4()],
 ]) {
   writeFileSync(out(file), JSON.stringify(wf, null, 2) + '\n')

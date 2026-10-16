@@ -189,6 +189,9 @@ export default function ActivityMenu() {
                     </span>
                   </div>
                   <div className="activity-text">{r.text}</div>
+                  {r.state === 'stuck' && (
+                    <button className="link activity-clear" onClick={() => { clearStarted(r.key); setStarted(readStarted()) }}>Clear</button>
+                  )}
                 </div>
               </li>
             ))}
