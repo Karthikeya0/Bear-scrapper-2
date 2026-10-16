@@ -1,126 +1,579 @@
 {
-  "name": "WF-3b: Send Approved Email (Webhook)",
+  "name": "WF-3b: Send Approved",
   "nodes": [
     {
-      "parameters": {
-        "path": "approve-and-send",
-        "responseMode": "onReceived",
-        "responseCode": 200
-      },
-      "id": "n1",
-      "name": "Webhook: Approve & Send",
+      "id": "b3a5e7c1-0000-4000-8000-000000000078",
+      "name": "Dashboard: Approve & send",
       "type": "n8n-nodes-base.webhook",
-      "position": [0, 0]
-    },
-    {
+      "typeVersion": 2,
+      "position": [
+        0,
+        100
+      ],
       "parameters": {
-        "jsCode": "// Validate secret token\nconst secret = $input.first().json.headers['x-webhook-secret'];\nif (secret !== $env.N8N_WEBHOOK_SECRET) throw new Error('Unauthorized');\nreturn $input.all();"
-      },
-      "id": "n2",
-      "name": "Code: Validate Secret",
-      "type": "n8n-nodes-base.code",
-      "position": [200, 0]
-    },
-    {
-      "parameters": {
-        "operation": "get",
-        "schema": "public",
-        "table": "outreach_queue",
-        "id": "={{ $json.body.outreach_id }}"
-      },
-      "id": "n3",
-      "name": "Supabase: Fetch Approved Email",
-      "type": "n8n-nodes-base.supabase",
-      "position": [400, 0]
-    },
-    {
-      "parameters": {
-        "operation": "get",
-        "schema": "public",
-        "table": "leads",
-        "id": "={{ $json.lead_id }}"
-      },
-      "id": "n4",
-      "name": "Supabase: Fetch Lead",
-      "type": "n8n-nodes-base.supabase",
-      "position": [600, 0]
-    },
-    {
-      "parameters": {
-        "sendTo": "={{ $json.email }}",
-        "subject": "={{ $node['Supabase: Fetch Approved Email'].json.subject }}",
-        "emailType": "text",
-        "message": "={{ $node['Supabase: Fetch Approved Email'].json.body }}",
+        "httpMethod": "POST",
+        "path": "approve-and-send",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
         "options": {}
       },
-      "id": "n5",
-      "name": "Gmail: Send Email",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000077",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bearDashboardSecret",
+          "name": "Bear dashboard secret"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000082",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000079",
+              "name": "supabase_url",
+              "value": "https://YOUR-PROJECT-REF.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000080",
+              "name": "sender_name",
+              "value": "Bear Studios",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000081",
+              "name": "started_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000083",
+      "name": "Fetch approved email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?id=eq.{{ $('Dashboard: Approve & send').first().json.body.outreach_id }}&status=eq.approved&select=id,lead_id,subject,body,sequence_step,leads(id,email,name,company,status)",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000085",
+      "name": "Ready to send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000084",
+              "leftValue": "={{ !!$json.id && !!($json.leads && $json.leads.email) && !['unsubscribed', 'bounced', 'dead'].includes($json.leads.status) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000086",
+      "name": "Gmail: send",
       "type": "n8n-nodes-base.gmail",
-      "position": [800, 0]
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "sendTo": "={{ $json.leads.email }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $('Config').first().json.sender_name }}"
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bearGmail",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
+      "id": "b3a5e7c1-0000-4000-8000-000000000088",
+      "name": "Sent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
       "parameters": {
-        "operation": "update",
-        "schema": "public",
-        "table": "outreach_queue",
-        "filterType": "string",
-        "filterString": "=id=eq.{{ $node['Supabase: Fetch Approved Email'].json.id }}",
-        "updateFields": { "status": "sent", "sent_at": "={{ new Date().toISOString() }}" }
-      },
-      "id": "n6",
-      "name": "Supabase: Mark Sent",
-      "type": "n8n-nodes-base.supabase",
-      "position": [1000, 0]
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000087",
+              "leftValue": "={{ !!$json.id && !$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
     },
     {
+      "id": "b3a5e7c1-0000-4000-8000-000000000089",
+      "name": "Mark sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        -100
+      ],
       "parameters": {
-        "operation": "insert",
-        "schema": "public",
-        "table": "outreach_history",
-        "columns": "lead_id,outreach_id,thread_id,message_id,subject,body_sent,sequence_step,sent_at",
-        "additionalFields": {}
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?id=eq.{{ $('Fetch approved email').first().json.id }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'sent', sent_at: new Date().toISOString() }) }}"
       },
-      "id": "n7",
-      "name": "Supabase: Log History",
-      "type": "n8n-nodes-base.supabase",
-      "position": [1200, 0]
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
     },
     {
+      "id": "b3a5e7c1-0000-4000-8000-000000000090",
+      "name": "Save history",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        -100
+      ],
       "parameters": {
-        "operation": "update",
-        "schema": "public",
-        "table": "leads",
-        "filterType": "string",
-        "filterString": "=id=eq.{{ $node['Supabase: Fetch Lead'].json.id }}",
-        "updateFields": { "status": "contacted", "first_contacted_at": "={{ new Date().toISOString() }}" }
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_history",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_id: $('Fetch approved email').first().json.lead_id, outreach_id: $('Fetch approved email').first().json.id, subject: $('Fetch approved email').first().json.subject, body: $('Fetch approved email').first().json.body, body_sent: $('Fetch approved email').first().json.body, sequence_step: $('Fetch approved email').first().json.sequence_step || 1, thread_id: $('Gmail: send').first().json.threadId || null, message_id: $('Gmail: send').first().json.id || null, sent_at: new Date().toISOString() }) }}"
       },
-      "id": "n8",
-      "name": "Supabase: Update Lead Status",
-      "type": "n8n-nodes-base.supabase",
-      "position": [1400, 0]
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
+      "id": "b3a5e7c1-0000-4000-8000-000000000091",
+      "name": "Mark lead contacted",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        -100
+      ],
       "parameters": {
-        "operation": "insert",
-        "schema": "public",
-        "table": "outreach_sequences",
-        "columns": "lead_id,sequence_step,template_key,send_at",
-        "additionalFields": {}
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/leads?id=eq.{{ $('Fetch approved email').first().json.lead_id }}&status=eq.scored",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'contacted', first_contacted_at: new Date().toISOString() }) }}"
       },
-      "id": "n9",
-      "name": "Supabase: Schedule Follow-ups",
-      "type": "n8n-nodes-base.code",
-      "position": [1600, 0]
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000092",
+      "name": "Log sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/workflow_logs",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow_name: 'WF-3b-SendApproved', status: 'success', emails_sent: 1, started_at: $('Config').first().json.started_at, finished_at: new Date().toISOString() }) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000093",
+      "name": "Return to review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        100
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?id=eq.{{ $('Fetch approved email').first().json.id }}&status=eq.approved",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'pending_review', approved_at: null }) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000094",
+      "name": "Log failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/workflow_logs",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflow_name: 'WF-3b-SendApproved', status: 'failed', emails_sent: 0, started_at: $('Config').first().json.started_at, finished_at: new Date().toISOString(), errors: [{ outreach_id: $('Dashboard: Approve & send').first().json.body.outreach_id, message: $('Gmail: send').isExecuted ? 'Gmail send failed: ' + String(($('Gmail: send').first().json.error && ($('Gmail: send').first().json.error.message || $('Gmail: send').first().json.error)) || 'unknown error').slice(0, 300) + ' (email returned to the review queue)' : 'Not sent: the email is no longer approved, or the lead has no email / unsubscribed.' }] }) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
     }
   ],
   "connections": {
-    "Webhook: Approve & Send": { "main": [[{ "node": "Code: Validate Secret", "type": "main", "index": 0 }]] },
-    "Code: Validate Secret": { "main": [[{ "node": "Supabase: Fetch Approved Email", "type": "main", "index": 0 }]] },
-    "Supabase: Fetch Approved Email": { "main": [[{ "node": "Supabase: Fetch Lead", "type": "main", "index": 0 }]] },
-    "Supabase: Fetch Lead": { "main": [[{ "node": "Gmail: Send Email", "type": "main", "index": 0 }]] },
-    "Gmail: Send Email": { "main": [[{ "node": "Supabase: Mark Sent", "type": "main", "index": 0 }]] },
-    "Supabase: Mark Sent": { "main": [[{ "node": "Supabase: Log History", "type": "main", "index": 0 }]] },
-    "Supabase: Log History": { "main": [[{ "node": "Supabase: Update Lead Status", "type": "main", "index": 0 }]] },
-    "Supabase: Update Lead Status": { "main": [[{ "node": "Supabase: Schedule Follow-ups", "type": "main", "index": 0 }]] }
-  }
+    "Dashboard: Approve & send": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch approved email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch approved email": {
+      "main": [
+        [
+          {
+            "node": "Ready to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ready to send?": {
+      "main": [
+        [
+          {
+            "node": "Gmail: send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: send": {
+      "main": [
+        [
+          {
+            "node": "Sent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sent?": {
+      "main": [
+        [
+          {
+            "node": "Mark sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return to review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark sent": {
+      "main": [
+        [
+          {
+            "node": "Save history",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save history": {
+      "main": [
+        [
+          {
+            "node": "Mark lead contacted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark lead contacted": {
+      "main": [
+        [
+          {
+            "node": "Log sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return to review": {
+      "main": [
+        [
+          {
+            "node": "Log failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
 }

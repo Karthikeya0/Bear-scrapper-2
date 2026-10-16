@@ -7,8 +7,10 @@ finds the founder's email, and queues a personalised pitch for your approval in 
 |---|---|---|
 | `WF1-lead-radar-sources.json` | WF-1 (Reddit scraper) | Every 6h or on "Scrape leads": Hacker News *Show HN*, YC (new, ≤3 people), BetaList, Product Hunt → `raw_leads` (duplicates skipped) |
 | `WF2-qualify-enrich.json` | WF-2 (processor) | Hourly or on "Score & enrich": free checks first (team size, launch date, domain age, homepage video, X/LinkedIn), then Hunter (founder email) **only for qualified leads**, then Groq score → `leads` |
+| `WF3-draft-outreach.json` | WF-3 (outreach generator) | Every 3h or on "Draft outreach": Groq writes one short email per qualified lead (score ≥ 60, has an email, never drafted) → `outreach_queue` as **pending review**. Nothing is sent. |
+| `WF3b-send-approved.json` | WF-3b (send approved) | When you click **Approve & send** in the dashboard: sends that one email with Gmail, marks it **sent**, marks the lead **contacted**, saves it to `outreach_history`. If Gmail fails the email goes back to the review queue. Same webhook (`approve-and-send`) and payload as before. |
 
-WF-3, WF-3b, WF-4 and WF-5 are unchanged. The old Reddit files are kept in `legacy/` for reference only.
+WF-4 and WF-5 are unchanged. The old files are kept in `legacy/` for reference only.
 
 ---
 
@@ -55,6 +57,18 @@ If any node is red, open it, copy the error, and send it to me.
 
 ---
 
+## Step 6 — Outreach: WF-3 (drafts) and WF-3b (send) (5 min)
+1. In n8n, **unpublish and delete** the old *WF-3* (it starts with a **Manual Trigger** → *Fetch Leads for Outreach*)
+   and the old *WF-3b* (*Webhook: Approve & Send* → *Code: Validate Secret*). The new ones reuse their webhook paths.
+2. Credential: **Gmail account** — type *Gmail OAuth2* (skip if you already have one; reuse it).
+3. Import `WF3-draft-outreach.json` and `WF3b-send-approved.json`, **each as its own workflow** (Step 4 again):
+   - **Config** → `supabase_url`; in both also check `sender_name` (shown as the From name and email sign-off).
+     WF-3 also has `portfolio_url` (optional link the email may mention), `batch_size` (10) and `min_score` (60).
+   - Pick credentials on the ⚠️ nodes (dashboard secret, Supabase, Groq; Gmail in WF-3b) → **Save → Publish**.
+4. Dashboard → **Settings → Integrations → Re-check**: `wf3-outreach` and `approve-and-send` show **Ready**.
+5. Dashboard → **Workflows → Draft outreach → Run now** → **Outreach** page → read each draft, edit if you like,
+   then **Approve & send** (or Reject). Sent leads turn green on the **Leads** page and in **Export to Excel**.
+
 ## Settings you can change (Config node — no code)
 | Setting | Default | Meaning |
 |---|---|---|
@@ -64,7 +78,9 @@ If any node is red, open it, copy the error, and send it to me.
 | `max_launch_age_days` / `max_domain_age_days` (WF-2) | 90 / 730 | "New" = launched within 90 days **or** domain younger than 2 years |
 | `just_launched_days` (WF-2) | 30 | Counts as a "just launched" buying signal |
 | `batch_size` (WF-2) | 25 | Raw leads checked per run — lower it to save Hunter credits |
-| `min_score` (WF-2) | 60 | AI score needed for WF-3 to draft an email |
+| `min_score` (WF-2, WF-3) | 60 | AI score needed for WF-3 to draft an email |
+| `batch_size` (WF-3) | 10 | Emails drafted per run (Groq calls are spaced 2.5 s apart for the free tier) |
+| `sender_name` / `portfolio_url` (WF-3, WF-3b) | Bear Studios / empty | Sign-off and From name; optional portfolio link |
 
 **Qualification rule:** small **and** new **and** a buying signal (*just launched* or *no video on homepage*).
 Hunter is only called for leads that pass — check your Hunter plan's monthly quota and lower `batch_size` if needed.
@@ -74,6 +90,9 @@ Tested in a real n8n 2.43 against local stand-ins that follow each service's doc
 both webhooks, all four sources, duplicate skipping, Product Hunt and BetaList redirects, RDAP domain age,
 homepage video / X / LinkedIn detection, founder-email selection, Groq scoring, all Supabase writes
 (checked against the real migrated columns), and a run where two sources fail (the rest still saves).
+WF-3/WF-3b were tested the same way: drafts only for eligible, never-drafted leads; no duplicates on re-run; a Groq
+failure on one lead still saves the others and is logged; Gmail send (From name, no n8n footer), sent/contacted/history
+updates; re-sending an already-sent email does nothing; a Gmail failure returns the email to the review queue.
 
 Could not be tested here (this environment cannot reach the live sites) — verify on first run:
 - **BetaList feed URL** (`betalist_url`): if that node errors, tell me the error and I'll update the URL.
