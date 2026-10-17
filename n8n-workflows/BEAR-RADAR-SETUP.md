@@ -89,8 +89,8 @@ If any node is red, open it, copy the error, and send it to me.
    Start with Daily email for a couple of weeks before switching it on.
 
 Everything is written to `audit_log` (sends, approvals, pauses, autopilot decisions, your email commands) and shown under
-**Workflows → Audit log**. **n8n only runs while your computer is awake** — for real 24/7 autopilot, run n8n on an always-on
-server (e.g. the Oracle Cloud free tier) and point `N8N_BASE_URL` at it.
+**Workflows → Audit log**. **n8n only runs while your computer is awake** — for real 24/7 autopilot, move n8n to the free
+Oracle Cloud server with `deploy/oracle/README.md` (about 30 minutes; your workflows and credentials come along).
 
 ## Settings you can change
 **Use the dashboard's Settings page** for the minimum score, drafts per run, follow-up days, DMs, daily limit,

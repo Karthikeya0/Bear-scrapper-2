@@ -21,3 +21,9 @@ npm-debug.log*
 .vercel
 supabase/.temp
 supabase/.branches
+
+# server deploy (deploy/oracle): data, backups and migrated n8n data are never committed
+/deploy/oracle/data/
+/deploy/oracle/backups/
+/deploy/oracle/*.tgz
+/deploy/oracle/backup.log

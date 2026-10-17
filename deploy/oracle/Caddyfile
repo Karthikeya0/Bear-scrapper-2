@@ -1,0 +1,12 @@
+# HTTPS certificate from Let's Encrypt, renewed automatically. N8N_DOMAIN comes from .env.
+
+{$N8N_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy n8n:5678
+}
