@@ -5,6 +5,8 @@ import { isSupabaseConfigured } from '@/lib/env'
 export const metadata: Metadata = {
   title: { default: 'Bear Studios', template: '%s · Bear Studios' },
   description: 'Lead generation, outreach and client operations for Bear Studios.',
+  // Opens full-screen like an app after "Add to Home Screen" on iPhone.
+  appleWebApp: { capable: true, title: 'Bear Radar', statusBarStyle: 'black-translucent' },
 }
 
 export const viewport: Viewport = {
