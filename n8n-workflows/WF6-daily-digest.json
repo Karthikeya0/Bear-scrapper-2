@@ -1,0 +1,819 @@
+{
+  "name": "WF-6: Daily Digest",
+  "nodes": [
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000188",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000190",
+      "name": "Dashboard: Send digest",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wf6-digest",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000189",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bearDashboardSecret",
+          "name": "Bear dashboard secret"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000202",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000191",
+              "name": "supabase_url",
+              "value": "https://YOUR-PROJECT-REF.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000192",
+              "name": "dashboard_url",
+              "value": "http://localhost:3000",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000193",
+              "name": "autopilot_mode",
+              "value": "manual",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000194",
+              "name": "digest_hour",
+              "value": 9,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000195",
+              "name": "owner_email",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000196",
+              "name": "timezone",
+              "value": "Asia/Kolkata",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000197",
+              "name": "daily_max",
+              "value": 20,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000198",
+              "name": "send_window_start",
+              "value": 9,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000199",
+              "name": "send_window_end",
+              "value": 18,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000200",
+              "name": "paused",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000201",
+              "name": "started_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000203",
+      "name": "Digest due?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// WF-6 \"Digest due?\" (Code node, Run Once for All Items).\n// Clicking \"Send digest now\" in the dashboard always sends. The hourly schedule sends once a day at\n// digest_hour (your time zone), only when autopilot is \"digest\" or \"auto\" and an owner email is set.\nconst cfg = $('Settings').first().json\nconst manual = $('Dashboard: Send digest').isExecuted\nconst hour = Number(\n  new Intl.DateTimeFormat('en-US', { timeZone: cfg.timezone || 'UTC', hour: 'numeric', hourCycle: 'h23' }).format(new Date()),\n)\nlet reason = ''\nif (!cfg.owner_email) reason = 'No owner email set (Settings → Autopilot).'\nelse if (!manual && !['digest', 'auto'].includes(cfg.autopilot_mode)) reason = 'Autopilot is manual.'\nelse if (!manual && hour !== Number(cfg.digest_hour ?? 9)) reason = 'Not digest time yet.'\n// Start of today in your time zone, used to avoid a second digest on the same day.\nconst local = new Date(new Date().toLocaleString('en-US', { timeZone: cfg.timezone || 'UTC' }))\nconst dayStart = new Date(Date.now() - (local.getHours() * 3600 + local.getMinutes() * 60 + local.getSeconds()) * 1000)\nreturn [{ json: { due: !reason, manual, reason, day_start: dayStart.toISOString() } }]\n"
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000205",
+      "name": "Due?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000204",
+              "leftValue": "={{ $json.due }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000206",
+      "name": "Drafts waiting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?select=id,subject,body,created_at,leads(name,company,ai_score,email)&status=eq.pending_review&channel=eq.email&order=created_at.asc&limit=25",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000207",
+      "name": "Scheduled",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?select=id&status=eq.scheduled&limit=1000",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000208",
+      "name": "Sent last 24h",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?select=id&status=eq.sent&channel=eq.email&sent_at=gte.{{ encodeURIComponent($now.minus({ hours: 24 }).toUTC().toISO()) }}&limit=1000",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000209",
+      "name": "Replies last 24h",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/leads?select=id,name,company,email&replied_at=gte.{{ encodeURIComponent($now.minus({ hours: 24 }).toUTC().toISO()) }}&limit=50",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000210",
+      "name": "Bounced last 24h",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/leads?select=id&status=eq.bounced&updated_at=gte.{{ encodeURIComponent($now.minus({ hours: 24 }).toUTC().toISO()) }}&limit=500",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000211",
+      "name": "Failures last 24h",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/workflow_logs?select=workflow_name,errors,created_at&status=eq.failed&created_at=gte.{{ encodeURIComponent($now.minus({ hours: 24 }).toUTC().toISO()) }}&order=created_at.desc&limit=10",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000212",
+      "name": "Digest sent today?",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/audit_log?select=id,created_at&action=eq.digest_sent&created_at=gte.{{ encodeURIComponent($('Digest due?').first().json.day_start) }}&limit=1",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000213",
+      "name": "Build digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// WF-6 \"Build digest\" (Code node, Run Once for All Items).\n// One plain-text email to the owner: the drafts waiting for approval, yesterday's results and anything broken.\n// The subject carries a one-time code ([#ABC123]); WF-4 only acts on replies that quote a code it sent.\nconst cfg = $('Settings').first().json\nconst due = $('Digest due?').first().json\nconst rows = name => $(name).all().map(i => i.json).filter(r => r && (r.id || r.created_at))\n\nconst drafts = rows('Drafts waiting').slice(0, 25)\nconst scheduled = rows('Scheduled').length\nconst sent = rows('Sent last 24h').length\nconst replies = rows('Replies last 24h')\nconst bounced = rows('Bounced last 24h').length\nconst failures = rows('Failures last 24h')\nconst alreadySent = rows('Digest sent today?').length > 0\n\nif (alreadySent && !due.manual) return [{ json: { send: false, reason: 'Digest already sent today.' } }]\n\nconst ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'\nlet code = ''\nfor (let i = 0; i < 6; i++) code += ALPHABET[Math.floor(Math.random() * ALPHABET.length)]\n\nconst clip = (s, n) => {\n  const t = String(s || '').replace(/\\s+/g, ' ').trim()\n  return t.length > n ? t.slice(0, n - 1) + '…' : t\n}\nconst firstLine = body => clip(String(body || '').split('\\n').filter(l => l.trim() && !/^hi\\b/i.test(l.trim()))[0], 140)\nconst who = l => (l && (l.company || l.name)) || 'Unknown'\nconst window = `${cfg.send_window_start ?? 9}:00–${cfg.send_window_end ?? 18}:00`\nconst dash = String(cfg.dashboard_url || 'http://localhost:3000').replace(/\\/+$/, '')\n\nconst lines = []\nif (cfg.paused === true) lines.push('⏸ Outreach is PAUSED. Nothing is being sent. Reply RESUME to start again.', '')\nif (drafts.length) {\n  lines.push(`${drafts.length} email draft${drafts.length === 1 ? ' is' : 's are'} waiting for you. Reply YES to send ${drafts.length === 1 ? 'it' : 'all of them'} — they go out one every 10 minutes between ${window}, at most ${cfg.daily_max ?? 20} a day.`, '')\n  drafts.forEach((d, i) => {\n    const l = d.leads || {}\n    lines.push(`${i + 1}. ${who(l)}${l.ai_score != null ? ` (score ${l.ai_score})` : ''} — \"${clip(d.subject, 80)}\"`)\n    lines.push(`   ${firstLine(d.body)}`)\n  })\n  lines.push('')\n} else {\n  lines.push('No drafts are waiting today.', '')\n}\nif (scheduled) lines.push(`${scheduled} approved email${scheduled === 1 ? ' is' : 's are'} already scheduled to go out.`, '')\nlines.push(`Last 24 hours: ${sent} sent · ${replies.length} ${replies.length === 1 ? 'reply' : 'replies'} · ${bounced} bounced`)\nif (replies.length) {\n  lines.push('', 'Replies to answer:')\n  replies.slice(0, 10).forEach(r => lines.push(`- ${r.name || r.company || r.email}${r.company && r.name ? ` (${r.company})` : ''} — ${r.email || ''}`))\n}\nif (failures.length) {\n  lines.push('', 'Problems:')\n  failures.slice(0, 5).forEach(f => {\n    const msg = Array.isArray(f.errors) && f.errors[0] && f.errors[0].message ? f.errors[0].message : 'failed'\n    lines.push(`- ${f.workflow_name}: ${clip(msg, 160)}`)\n  })\n}\nlines.push('', 'Reply with one word:')\nif (drafts.length) lines.push(`  YES       send the ${drafts.length} draft${drafts.length === 1 ? '' : 's'} above`)\nlines.push('  STOP ALL  pause everything (nothing is scraped, drafted or sent)')\nlines.push('  RESUME    start again')\nlines.push('', `Or review them one by one: ${dash}/outreach`, '', '— Bear Radar')\n\nconst subject = drafts.length\n  ? `Bear Radar: ${drafts.length} draft${drafts.length === 1 ? '' : 's'} ready - reply YES to send [#${code}]`\n  : `Bear Radar daily: ${sent} sent, ${replies.length} ${replies.length === 1 ? 'reply' : 'replies'} [#${code}]`\n\nreturn [{\n  json: {\n    send: true,\n    to: cfg.owner_email,\n    subject,\n    body: lines.join('\\n'),\n    audit: { actor: 'n8n:WF-6', action: 'digest_sent', details: { code, to: cfg.owner_email, outreach_ids: drafts.map(d => d.id) } },\n    log: {\n      workflow_name: 'WF-6-Digest', status: 'success', leads_scraped: 0, leads_skipped: 0, leads_scored: drafts.length,\n      emails_sent: 0, replies_detected: replies.length, errors: null, started_at: cfg.started_at, finished_at: new Date().toISOString(),\n    },\n  },\n}]\n"
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000215",
+      "name": "Send it?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000214",
+              "leftValue": "={{ $json.send }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000216",
+      "name": "Gmail: send digest",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3300,
+        -60
+      ],
+      "parameters": {
+        "sendTo": "={{ $('Build digest').first().json.to }}",
+        "subject": "={{ $('Build digest').first().json.subject }}",
+        "emailType": "text",
+        "message": "={{ $('Build digest').first().json.body }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "Bear Radar"
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bearGmail",
+          "name": "Gmail account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000217",
+      "name": "Audit: digest sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3520,
+        -60
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/audit_log",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build digest').first().json.audit) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000218",
+      "name": "Write run log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3740,
+        -60
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/workflow_logs",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build digest').first().json.log) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000219",
+      "name": "Load dashboard settings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/settings?key=eq.outreach&select=value",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000220",
+      "name": "Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"paused\":\"paused\",\"autopilot_mode\":\"autopilot_mode\",\"digest_hour\":\"digest_hour\",\"owner_email\":\"owner_email\",\"timezone\":\"timezone\",\"daily_max\":\"daily_max\",\"send_window_start\":\"send_window_start\",\"send_window_end\":\"send_window_end\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
+      }
+    }
+  ],
+  "connections": {
+    "Every hour": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dashboard: Send digest": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Load dashboard settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Digest due?": {
+      "main": [
+        [
+          {
+            "node": "Due?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Due?": {
+      "main": [
+        [
+          {
+            "node": "Drafts waiting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drafts waiting": {
+      "main": [
+        [
+          {
+            "node": "Scheduled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scheduled": {
+      "main": [
+        [
+          {
+            "node": "Sent last 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sent last 24h": {
+      "main": [
+        [
+          {
+            "node": "Replies last 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replies last 24h": {
+      "main": [
+        [
+          {
+            "node": "Bounced last 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bounced last 24h": {
+      "main": [
+        [
+          {
+            "node": "Failures last 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failures last 24h": {
+      "main": [
+        [
+          {
+            "node": "Digest sent today?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Digest sent today?": {
+      "main": [
+        [
+          {
+            "node": "Build digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build digest": {
+      "main": [
+        [
+          {
+            "node": "Send it?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send it?": {
+      "main": [
+        [
+          {
+            "node": "Gmail: send digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: send digest": {
+      "main": [
+        [
+          {
+            "node": "Audit: digest sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit: digest sent": {
+      "main": [
+        [
+          {
+            "node": "Write run log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load dashboard settings": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Digest due?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

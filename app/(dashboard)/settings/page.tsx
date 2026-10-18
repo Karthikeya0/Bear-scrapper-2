@@ -1,341 +1,400 @@
 'use client'
-export const dynamic = 'force-dynamic'
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/Toast'
+import { Alert, Badge, PageHeader, Spinner } from '@/components/ui'
+import { IconDatabase, IconRefresh, IconWorkflow } from '@/components/icons'
+import { audit, DEFAULT_SETTINGS, loadSettings, patchSettings, type AutopilotMode, type OutreachSettings } from '@/lib/settings'
+import { triggerWorkflow } from '@/lib/workflows'
+import { SETTINGS_CHANGED } from '@/components/PausedBanner'
 
-type Settings = {
-  icp_filter: {
-    min_score: number
-    sources: string[]
-    exclude_domains: string[]
-    keywords_include: string[]
-    keywords_exclude: string[]
-  }
-  sending_limits: {
-    daily_max: number
-    hourly_max: number
-    min_gap_minutes: number
-    send_window_start_hour: number
-    send_window_end_hour: number
-    send_on_weekends: boolean
-    follow_up_days: number[]
+type Status = {
+  supabase: { connected: boolean; error?: string }
+  n8n: {
+    baseUrlConfigured: boolean; secretConfigured: boolean; reachable: boolean; error?: string
+    webhooks?: { workflow: string; path: string; required?: boolean; state: 'ready' | 'missing' | 'wrong_method' | 'unknown'; detail?: string }[]
   }
 }
 
-type Template = {
-  id: string
-  key: string
-  name: string
-  subject_template: string
-  body_template: string
-  active: boolean
+const WEBHOOKS: [string, string][] = [
+  ['wf1-scraper', 'Scrape leads'],
+  ['wf2-processor', 'Score & enrich'],
+  ['wf3-outreach', 'Draft outreach'],
+  ['approve-and-send', 'Approve & send'],
+  ['wf4-reply-monitor', 'Check replies'],
+]
+const FALLBACK_ZONES = ['Asia/Kolkata', 'Asia/Dubai', 'Asia/Singapore', 'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Los_Angeles', 'UTC']
+const MODES: { key: AutopilotMode; title: string; text: string; tag?: string }[] = [
+  { key: 'manual', title: 'Manual', text: 'You approve every email here in the dashboard. No daily email.' },
+  { key: 'digest', title: 'Daily email', text: 'Each morning you get one email listing the drafts. Reply YES and they go out through the day.', tag: 'Recommended' },
+  { key: 'auto', title: 'Autopilot', text: 'Leads at or above your auto-send score go out without asking. The rest still wait for your YES.' },
+]
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+const withoutPause = ({ paused: _paused, ...rest }: OutreachSettings) => rest // eslint-disable-line @typescript-eslint/no-unused-vars
+
+const hourLabel = (h: number) => (h === 0 || h === 24 ? '12 am' : h === 12 ? '12 pm' : h < 12 ? `${h} am` : `${h - 12} pm`)
+const int = (v: string, min: number, max: number, fallback: number) => {
+  const n = Math.round(Number(v))
+  return v.trim() !== '' && Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback
+}
+
+/** One setting: what it does on the left, the control on the right. */
+function Row({ label, hint, htmlFor, children }: { label: string; hint?: ReactNode; htmlFor?: string; children: ReactNode }) {
+  return (
+    <div className="set-row">
+      <div className="set-row-text">
+        <label className="set-row-label" htmlFor={htmlFor}>{label}</label>
+        {hint && <div className="set-row-hint">{hint}</div>}
+      </div>
+      <div className="set-row-control">{children}</div>
+    </div>
+  )
+}
+
+function Section({ id, title, desc, wide, children }: { id?: string; title: string; desc: string; wide?: boolean; children: ReactNode }) {
+  return (
+    <section id={id} className={`card set-section${wide ? ' wide' : ''}`}>
+      <div className="set-section-head">
+        <h2 className="card-title">{title}</h2>
+        <p className="card-desc">{desc}</p>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Toggle({ id, checked, onChange }: { id: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button id={id} type="button" role="switch" aria-checked={checked} className={`switch ${checked ? 'on' : ''}`} onClick={() => onChange(!checked)}>
+      <span className="switch-knob" />
+    </button>
+  )
 }
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<Settings | null>(null)
-  const [templates, setTemplates] = useState<Template[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'icp' | 'sending' | 'templates'>('icp')
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
-  const [saved, setSaved] = useState(false)
-
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
+  const [saved, setSaved] = useState<OutreachSettings>(DEFAULT_SETTINGS)
+  const [form, setForm] = useState<OutreachSettings>(DEFAULT_SETTINGS)
+  const [followText, setFollowText] = useState(DEFAULT_SETTINGS.follow_up_days.join(', '))
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState<Status | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [pausing, setPausing] = useState(false)
+  const [sendingDigest, setSendingDigest] = useState(false)
+  const zones = useMemo(() => {
+    let list: string[] = FALLBACK_ZONES
+    try {
+      list = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.('timeZone') ?? FALLBACK_ZONES
+    } catch {}
+    return list.includes(form.timezone) ? list : [form.timezone, ...list]
+  }, [form.timezone])
 
-  const fetchData = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true)
-    const { data: settingsData } = await supabase.from('settings').select('*')
-    if (settingsData) {
-      const s: Partial<Settings> = {}
-      for (const row of settingsData) {
-        s[row.key as keyof Settings] = row.value
-      }
-      setSettings(s as Settings)
-    }
-
-    const { data: tmpl } = await supabase.from('email_templates').select('*').order('created_at')
-    setTemplates((tmpl as Template[]) || [])
+    const { settings, error } = await loadSettings(supabase)
+    setLoadError(error ?? '')
+    setSaved(settings)
+    setForm(settings)
+    setFollowText(settings.follow_up_days.join(', '))
     setLoading(false)
+  }, [supabase])
+
+  const checkStatus = useCallback(async () => {
+    setChecking(true)
+    try {
+      const res = await fetch('/api/integrations/status', { cache: 'no-store' })
+      setStatus(res.ok ? await res.json() : null)
+    } finally {
+      setChecking(false)
+    }
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    load()
+    checkStatus()
+  }, [load, checkStatus])
 
-  async function saveSettings() {
-    if (!settings) return
+  // The banner (or an emailed STOP ALL / RESUME) can change `paused`; mirror it without touching unsaved edits.
+  useEffect(() => {
+    const sync = async () => {
+      const { settings } = await loadSettings(supabase)
+      setSaved(prev => ({ ...prev, paused: settings.paused }))
+      setForm(prev => ({ ...prev, paused: settings.paused }))
+    }
+    window.addEventListener(SETTINGS_CHANGED, sync)
+    return () => window.removeEventListener(SETTINGS_CHANGED, sync)
+  }, [supabase])
+
+  // The pause switch saves on its own, so it never counts as an unsaved change.
+  const dirty = JSON.stringify(withoutPause(form)) !== JSON.stringify(withoutPause(saved))
+  const patch = (p: Partial<OutreachSettings>) => setForm(prev => ({ ...prev, ...p }))
+
+  function parseFollowUps(text: string) {
+    return [...new Set(text.split(/[,\s]+/).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90))].sort((a, b) => a - b).slice(0, 3)
+  }
+
+  async function save() {
+    if (form.send_window_start >= form.send_window_end) return toast.error('The send window must start before it ends.')
+    for (const k of ['sign_off', 'signature_name', 'company_name', 'from_name'] as const) {
+      if (!form[k].trim()) return toast.error('Fill in every signature field.')
+    }
+    const owner_email = form.owner_email.trim().toLowerCase()
+    if (owner_email && !EMAIL_RE.test(owner_email)) return toast.error('That email address does not look right.')
+    if (form.autopilot_mode !== 'manual' && !owner_email) return toast.error('Add the email address the daily email should go to.')
     setSaving(true)
-    await Promise.all([
-      supabase.from('settings').upsert({ key: 'icp_filter', value: settings.icp_filter }),
-      supabase.from('settings').upsert({ key: 'sending_limits', value: settings.sending_limits }),
-    ])
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    const value = withoutPause({ ...form, owner_email, sign_off: form.sign_off.trim(), signature_name: form.signature_name.trim(), company_name: form.company_name.trim(), website: form.website.trim(), from_name: form.from_name.trim() })
+    const changed = (Object.keys(value) as (keyof typeof value)[]).filter(k => JSON.stringify(value[k]) !== JSON.stringify(saved[k]))
+    // Keeps `paused` as stored: an emailed STOP ALL may have changed it since this page loaded.
+    const { error, value: stored } = await patchSettings(supabase, value)
     setSaving(false)
+    if (error || !stored) return toast.error(`Could not save: ${error}`)
+    await audit(supabase, 'settings_saved', { changed, autopilot_mode: value.autopilot_mode })
+    setSaved(stored)
+    setForm(stored)
+    toast.success('Saved. n8n uses these from its next run.')
   }
 
-  async function saveTemplate() {
-    if (!editingTemplate) return
-    setSaving(true)
-    await supabase.from('email_templates')
-      .update({
-        subject_template: editingTemplate.subject_template,
-        body_template: editingTemplate.body_template,
-        name: editingTemplate.name,
-        active: editingTemplate.active,
-      })
-      .eq('id', editingTemplate.id)
-    setSaving(false)
-    setEditingTemplate(null)
-    fetchData()
+  async function setPaused(paused: boolean) {
+    setPausing(true)
+    const { error, value } = await patchSettings(supabase, { paused })
+    if (!error) await audit(supabase, paused ? 'paused' : 'resumed', { via: 'settings' })
+    setPausing(false)
+    if (error || !value) return toast.error(`Could not ${paused ? 'pause' : 'resume'}: ${error}`)
+    setSaved(prev => ({ ...prev, paused }))
+    setForm(prev => ({ ...prev, paused }))
+    window.dispatchEvent(new Event(SETTINGS_CHANGED))
+    toast.success(paused ? 'Paused. Nothing will be scraped, drafted or sent.' : 'Resumed.')
   }
 
-  function updateICP<K extends keyof Settings['icp_filter']>(key: K, value: Settings['icp_filter'][K]) {
-    setSettings(prev => prev ? { ...prev, icp_filter: { ...prev.icp_filter, [key]: value } } : prev)
+  async function sendDigestNow() {
+    setSendingDigest(true)
+    const res = await triggerWorkflow('WF-6-Digest')
+    setSendingDigest(false)
+    if (res.ok) toast.success(`Digest on its way to ${saved.owner_email}. It can take a minute to arrive.`)
+    else toast.error(res.error ?? 'Could not start the digest.')
   }
 
-  function updateSending<K extends keyof Settings['sending_limits']>(key: K, value: Settings['sending_limits'][K]) {
-    setSettings(prev => prev ? { ...prev, sending_limits: { ...prev.sending_limits, [key]: value } } : prev)
+  function discard() {
+    setForm(saved)
+    setFollowText(saved.follow_up_days.join(', '))
   }
 
-  if (loading) return <div className="skeleton" style={{ height: 400, borderRadius: 'var(--radius)' }} />
-
-  const TABS = [
-    { key: 'icp' as const, label: '🎯 ICP Filter' },
-    { key: 'sending' as const, label: '📧 Sending Limits' },
-    { key: 'templates' as const, label: '✉ Email Templates' },
-  ]
+  const webhookIssues = status?.n8n.webhooks?.filter(w => w.required !== false && w.state !== 'ready') ?? []
+  const n8nOk = !!status && status.n8n.reachable && status.n8n.secretConfigured
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Settings</h1>
-          <p className="page-subtitle">Configure filters, sending limits, and email templates</p>
-        </div>
-        {activeTab !== 'templates' && (
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={saveSettings}
-            disabled={saving}
-          >
-            {saved ? '✓ Saved!' : saving ? 'Saving…' : 'Save Changes'}
-          </button>
-        )}
-      </div>
+      <PageHeader title="Settings" description="Everything here is used by your n8n workflows on their next run." />
+      {loadError && <Alert title="Could not load your settings">{loadError}</Alert>}
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-soft)' }}>
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key)}
-            style={{
-              padding: '0.625rem 1rem', fontSize: '0.875rem', fontWeight: 600,
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: activeTab === t.key ? 'var(--accent-light)' : 'var(--text-muted)',
-              borderBottom: activeTab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
-              transition: 'all 0.15s',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ICP Filter Tab */}
-      {activeTab === 'icp' && settings && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: 640 }}>
-          <div className="card">
-            <h3 style={{ marginBottom: '1.25rem' }}>Scoring Threshold</h3>
-            <div className="form-group">
-              <label className="form-label">Minimum AI Score for Outreach (0–100)</label>
-              <input
-                type="number" min={0} max={100}
-                className="form-input"
-                value={settings.icp_filter.min_score}
-                onChange={e => updateICP('min_score', Number(e.target.value))}
-              />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                Leads with score below this are disqualified. Recommended: 60
-              </span>
-            </div>
-          </div>
-
-          <div className="card">
-            <h3 style={{ marginBottom: '1.25rem' }}>Active Sources</h3>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              {['reddit', 'producthunt', 'twitter', 'yc', 'linkedin'].map(src => {
-                const active = settings.icp_filter.sources.includes(src)
-                return (
-                  <button
-                    key={src}
-                    onClick={() => updateICP('sources',
-                      active
-                        ? settings.icp_filter.sources.filter(s => s !== src)
-                        : [...settings.icp_filter.sources, src]
-                    )}
-                    className={`btn btn-sm ${active ? 'btn-primary' : 'btn-ghost'}`}
-                    style={{ textTransform: 'capitalize' }}
-                  >
-                    {active ? '✓ ' : ''}{src}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="card">
-            <h3 style={{ marginBottom: '1.25rem' }}>Keyword Filters</h3>
-            <div className="form-group">
-              <label className="form-label">Include keywords (comma-separated)</label>
-              <input
-                className="form-input"
-                value={settings.icp_filter.keywords_include.join(', ')}
-                onChange={e => updateICP('keywords_include', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                placeholder="saas, startup, founder, launch"
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Exclude keywords (comma-separated)</label>
-              <input
-                className="form-input"
-                value={settings.icp_filter.keywords_exclude.join(', ')}
-                onChange={e => updateICP('keywords_exclude', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                placeholder="hiring, job, agency"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sending Limits Tab */}
-      {activeTab === 'sending' && settings && (
-        <div style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div className="card">
-            <h3 style={{ marginBottom: '1.25rem' }}>Rate Limits</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Daily max emails</label>
-                <input type="number" min={1} max={50} className="form-input"
-                  value={settings.sending_limits.daily_max}
-                  onChange={e => updateSending('daily_max', Number(e.target.value))} />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Hourly max emails</label>
-                <input type="number" min={1} max={10} className="form-input"
-                  value={settings.sending_limits.hourly_max}
-                  onChange={e => updateSending('hourly_max', Number(e.target.value))} />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Min gap between sends (min)</label>
-                <input type="number" min={1} max={60} className="form-input"
-                  value={settings.sending_limits.min_gap_minutes}
-                  onChange={e => updateSending('min_gap_minutes', Number(e.target.value))} />
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <h3 style={{ marginBottom: '1.25rem' }}>Send Window</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Start hour (0–23)</label>
-                <input type="number" min={0} max={23} className="form-input"
-                  value={settings.sending_limits.send_window_start_hour}
-                  onChange={e => updateSending('send_window_start_hour', Number(e.target.value))} />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">End hour (0–23)</label>
-                <input type="number" min={0} max={23} className="form-input"
-                  value={settings.sending_limits.send_window_end_hour}
-                  onChange={e => updateSending('send_window_end_hour', Number(e.target.value))} />
-              </div>
-            </div>
-            <div style={{ marginTop: '1rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', cursor: 'pointer', fontSize: '0.875rem' }}>
-                <input
-                  type="checkbox"
-                  checked={settings.sending_limits.send_on_weekends}
-                  onChange={e => updateSending('send_on_weekends', e.target.checked)}
-                  style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
-                />
-                <span>Allow sending on weekends</span>
-              </label>
-            </div>
-          </div>
-
-          <div className="card">
-            <h3 style={{ marginBottom: '1.25rem' }}>Follow-up Schedule</h3>
-            <div className="form-group">
-              <label className="form-label">Follow-up days (comma-separated, e.g. 7, 14, 21)</label>
-              <input
-                className="form-input"
-                value={settings.sending_limits.follow_up_days.join(', ')}
-                onChange={e => updateSending('follow_up_days', e.target.value.split(',').map(s => Number(s.trim())).filter(Boolean))}
-              />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                Days after initial email to send follow-ups. Max 3 follow-ups recommended.
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Templates Tab */}
-      {activeTab === 'templates' && (
-        <div style={{ display: 'grid', gridTemplateColumns: editingTemplate ? '280px 1fr' : '1fr', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {templates.map(t => (
-              <div
-                key={t.id}
-                className="card card-hover"
-                onClick={() => setEditingTemplate({ ...t })}
-                style={{
-                  cursor: 'pointer',
-                  borderColor: editingTemplate?.id === t.id ? 'var(--accent)' : undefined,
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>{t.name}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{t.key}</div>
-              </div>
-            ))}
-          </div>
-
-          {editingTemplate && (
-            <div className="card fade-in">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                <h3>{editingTemplate.name}</h3>
-                <button className="btn btn-ghost btn-sm" onClick={() => setEditingTemplate(null)}>✕</button>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Template Name</label>
-                <input className="form-input" value={editingTemplate.name}
-                  onChange={e => setEditingTemplate(prev => prev ? { ...prev, name: e.target.value } : prev)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Subject Template</label>
-                <input className="form-input" value={editingTemplate.subject_template}
-                  onChange={e => setEditingTemplate(prev => prev ? { ...prev, subject_template: e.target.value } : prev)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Body Template</label>
-                <textarea className="form-textarea" value={editingTemplate.body_template} style={{ minHeight: 260, fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}
-                  onChange={e => setEditingTemplate(prev => prev ? { ...prev, body_template: e.target.value } : prev)} />
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                <button className="btn btn-primary btn-sm" onClick={saveTemplate} disabled={saving}>
-                  {saving ? 'Saving…' : 'Save Template'}
+      {loading ? (
+        <div className="skeleton" style={{ height: 420, borderRadius: 14, maxWidth: 880 }} />
+      ) : (
+        <div className="set-page">
+          <Section wide title="Autopilot" desc="How much runs without you. Scraping, scoring and drafting always run on their own; this decides who presses send.">
+            <div className="mode-grid" role="radiogroup" aria-label="Autopilot mode">
+              {MODES.map(m => (
+                <button
+                  key={m.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.autopilot_mode === m.key}
+                  className={`mode-card ${form.autopilot_mode === m.key ? 'on' : ''}`}
+                  onClick={() => patch({ autopilot_mode: m.key })}
+                >
+                  <span className="mode-title">{m.title}{m.tag && <span className="badge accent as-is" style={{ marginLeft: 8 }}>{m.tag}</span>}</span>
+                  <span className="mode-text">{m.text}</span>
                 </button>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={editingTemplate.active}
-                    onChange={e => setEditingTemplate(prev => prev ? { ...prev, active: e.target.checked } : prev)}
-                    style={{ accentColor: 'var(--accent)' }} />
-                  Active
-                </label>
+              ))}
+            </div>
+            {form.autopilot_mode !== 'manual' && (
+              <>
+                <Row label="Send the daily email to" htmlFor="owner_email" hint="Reply YES, STOP ALL or RESUME to it. Only replies from this address count.">
+                  <input id="owner_email" type="email" className="input" placeholder="you@example.com" value={form.owner_email} onChange={e => patch({ owner_email: e.target.value })} />
+                </Row>
+                <Row label="Daily email time" htmlFor="digest_hour" hint={`Your time zone (${form.timezone.replace(/_/g, ' ')}).`}>
+                  <select id="digest_hour" className="input set-select" value={form.digest_hour} onChange={e => patch({ digest_hour: Number(e.target.value) })}>
+                    {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
+                  </select>
+                </Row>
+              </>
+            )}
+            {form.autopilot_mode === 'auto' && (
+              <Row label="Auto-send score" htmlFor="auto_min" hint="Drafts for leads at or above this go straight to the send schedule. 85+ keeps it to your strongest leads.">
+                <div className="row" style={{ gap: 12, width: '100%' }}>
+                  <input id="auto_min" type="range" min={60} max={100} step={5} value={form.auto_min_score} onChange={e => patch({ auto_min_score: Number(e.target.value) })} className="range" />
+                  <span className="score high set-score">{form.auto_min_score}</span>
+                </div>
+              </Row>
+            )}
+            <Row label="STOP ALL" htmlFor="paused" hint="Pauses scraping, drafting and sending right away. You can also reply STOP ALL to the daily email.">
+              <div className="row" style={{ gap: 10 }}>
+                {pausing && <Spinner />}
+                <span className={form.paused ? 'overdue' : 'subtle'} style={{ fontSize: 13 }}>{form.paused ? 'Paused' : 'Running'}</span>
+                <Toggle id="paused" checked={form.paused} onChange={v => setPaused(v)} />
+              </div>
+            </Row>
+            {saved.autopilot_mode !== 'manual' && saved.owner_email && (
+              <div className="set-section-foot">
+                <span className="hint">Want to see what it looks like? The email goes to {saved.owner_email}.</span>
+                <button className="btn btn-sm" onClick={sendDigestNow} disabled={sendingDigest || dirty}>
+                  {sendingDigest && <Spinner />} Send me today&apos;s email now
+                </button>
+              </div>
+            )}
+          </Section>
+
+          <Section title="Who gets an email" desc="Used by Score & enrich and Draft outreach.">
+            <Row label="Minimum AI score" htmlFor="min_score" hint="Leads below this are not drafted. 60 is a good start. Lowering it only affects leads scored from now on.">
+              <div className="row" style={{ gap: 12, width: '100%' }}>
+                <input id="min_score" type="range" min={30} max={95} step={5} value={form.min_score} onChange={e => patch({ min_score: Number(e.target.value) })} className="range" />
+                <span className="score high set-score">{form.min_score}</span>
+              </div>
+            </Row>
+            <Row label="Drafts per run" htmlFor="drafts" hint="Messages written per click of Draft new emails (and every 3 hours).">
+              <input id="drafts" type="number" inputMode="numeric" className="input set-num" min={1} max={50} value={form.drafts_per_run}
+                onChange={e => patch({ drafts_per_run: int(e.target.value, 1, 50, form.drafts_per_run) })} />
+            </Row>
+            <Row label="Follow-ups" htmlFor="followups" hint="Days after the first email. Sent as replies in the same thread. Empty = none.">
+              <div className="set-suffix">
+                <input id="followups" className="input" value={followText} placeholder="4, 7"
+                  onChange={e => { setFollowText(e.target.value); patch({ follow_up_days: parseFollowUps(e.target.value) }) }}
+                  onBlur={() => setFollowText(form.follow_up_days.join(', '))} />
+                <span className="subtle">days</span>
+              </div>
+            </Row>
+            <Row label="Draft DMs when there is no email" htmlFor="dms" hint="Writes an X / LinkedIn message you send by hand.">
+              <Toggle id="dms" checked={form.draft_dms} onChange={v => patch({ draft_dms: v })} />
+            </Row>
+          </Section>
+
+          <Section title="Sending" desc="For emails you approve with Approve all. Approve & send on one email sends right away.">
+            <Row label="Daily limit" htmlFor="daily" hint="Keep it at 20–30 so Gmail trusts your account.">
+              <input id="daily" type="number" inputMode="numeric" className="input set-num" min={1} max={200} value={form.daily_max}
+                onChange={e => patch({ daily_max: int(e.target.value, 1, 200, form.daily_max) })} />
+            </Row>
+            <Row label="Send window" htmlFor="win_start" hint="One scheduled email every 10 minutes inside these hours.">
+              <div className="row" style={{ gap: 8 }}>
+                <select id="win_start" className="input set-select" value={form.send_window_start} onChange={e => patch({ send_window_start: Number(e.target.value) })}>
+                  {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}
+                </select>
+                <span className="subtle">to</span>
+                <select aria-label="Send window end" className="input set-select" value={form.send_window_end} onChange={e => patch({ send_window_end: Number(e.target.value) })}>
+                  {Array.from({ length: 24 }, (_, i) => i + 1).map(h => <option key={h} value={h}>{hourLabel(h)}</option>)}
+                </select>
+              </div>
+            </Row>
+            <Row label="Time zone" htmlFor="tz">
+              <select id="tz" className="input" value={form.timezone} onChange={e => patch({ timezone: e.target.value })}>
+                {zones.map(z => <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>)}
+              </select>
+            </Row>
+            <Row label="Send on weekends" htmlFor="weekends">
+              <Toggle id="weekends" checked={form.send_on_weekends} onChange={v => patch({ send_on_weekends: v })} />
+            </Row>
+          </Section>
+
+          <Section wide title="Your signature" desc="Added to the end of every email. The AI never writes its own sign-off.">
+            <div className="set-sig">
+              <div className="set-sig-fields">
+                <div className="field">
+                  <label className="label" htmlFor="from_name">From name <span className="subtle">(shown in their inbox)</span></label>
+                  <input id="from_name" className="input" value={form.from_name} maxLength={80} onChange={e => patch({ from_name: e.target.value })} />
+                </div>
+                <div className="form-grid">
+                  <div className="field">
+                    <label className="label" htmlFor="sign_off">Sign-off</label>
+                    <input id="sign_off" className="input" value={form.sign_off} maxLength={40} onChange={e => patch({ sign_off: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label className="label" htmlFor="sig_name">Name</label>
+                    <input id="sig_name" className="input" value={form.signature_name} maxLength={80} onChange={e => patch({ signature_name: e.target.value })} />
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label className="label" htmlFor="company">Company</label>
+                    <input id="company" className="input" value={form.company_name} maxLength={80} onChange={e => patch({ company_name: e.target.value })} />
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label className="label" htmlFor="website">Website</label>
+                    <input id="website" className="input" value={form.website} maxLength={80} onChange={e => patch({ website: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+              <div className="set-preview" aria-label="Preview">
+                <div className="set-preview-label">Preview</div>
+                <div className="set-preview-from"><strong>{form.from_name || '—'}</strong></div>
+                <p className="set-preview-faded">…Would a 15-minute call next week be useful?</p>
+                <p>I&apos;ve attached a one-pager on how we work.</p>
+                <p className="set-preview-sig">
+                  {form.sign_off}<br />{form.signature_name}<br />{form.company_name}<br />
+                  {form.website && <span className="link">{form.website}</span>}
+                </p>
+                <div className="set-preview-file">📎 Bear-Studios-How-We-Work.pdf</div>
               </div>
             </div>
-          )}
+          </Section>
+
+          <Section wide id="connections" title="Connections" desc="Checked on the server. Secret values never reach the browser.">
+            <div className="set-conn">
+              <div className="set-conn-item">
+                <span className="integration-icon"><IconDatabase /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="cell-title">Supabase</div>
+                  <div className="cell-sub truncate">{!status ? 'Checking…' : status.supabase.connected ? 'Database reachable' : status.supabase.error}</div>
+                </div>
+                {status && <Badge tone={status.supabase.connected ? 'green' : 'red'}>{status.supabase.connected ? 'Connected' : 'Error'}</Badge>}
+              </div>
+              <div className="set-conn-item">
+                <span className="integration-icon"><IconWorkflow /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="cell-title">n8n</div>
+                  <div className="cell-sub truncate">
+                    {!status ? 'Checking…'
+                      : !status.n8n.baseUrlConfigured ? 'N8N_BASE_URL is not set in .env.local'
+                      : !status.n8n.secretConfigured ? 'N8N_WEBHOOK_SECRET is not set in .env.local'
+                      : status.n8n.reachable ? (webhookIssues.length ? `${webhookIssues.length} webhook${webhookIssues.length > 1 ? 's' : ''} not ready` : 'All webhooks ready')
+                      : `Unreachable: ${status.n8n.error ?? 'unknown error'}`}
+                  </div>
+                </div>
+                {status && <Badge tone={n8nOk && !webhookIssues.length ? 'green' : 'red'}>{n8nOk && !webhookIssues.length ? 'Connected' : 'Problem'}</Badge>}
+              </div>
+            </div>
+            {status?.n8n.webhooks && (
+              <div className="set-hooks">
+                {WEBHOOKS.map(([path, label]) => {
+                  const probe = status.n8n.webhooks?.find(w => w.path === path)
+                  const ok = probe?.state === 'ready'
+                  return (
+                    <div key={path} className="set-hook" title={probe?.detail}>
+                      <span className={`set-dot ${ok ? 'ok' : probe?.state === 'unknown' ? '' : 'bad'}`} />
+                      <span>{label}</span>
+                      <span className="mono subtle truncate">/webhook/{path}</span>
+                      <span className="set-hook-state">{ok ? 'Ready' : probe?.state === 'missing' ? 'Not published in n8n' : probe?.state === 'wrong_method' ? 'Must be POST' : 'Unknown'}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div className="set-section-foot">
+              <span className="hint">A 403 when starting a workflow means that webhook&apos;s Header Auth credential in n8n doesn&apos;t match N8N_WEBHOOK_SECRET.</span>
+              <button className="btn btn-sm" onClick={checkStatus} disabled={checking}>
+                {checking ? <Spinner /> : <IconRefresh className="icon" />} Re-check
+              </button>
+            </div>
+          </Section>
+        </div>
+      )}
+
+      {dirty && (
+        <div className="savebar fade-in" role="region" aria-label="Unsaved changes">
+          <span>Unsaved changes</span>
+          <div className="row">
+            <button className="btn btn-sm" onClick={discard} disabled={saving}>Discard</button>
+            <button className="btn btn-sm btn-primary" onClick={save} disabled={saving}>{saving && <Spinner />} Save changes</button>
+          </div>
         </div>
       )}
     </>

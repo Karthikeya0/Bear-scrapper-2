@@ -1,0 +1,116 @@
+{
+  "name": "WF-4: Reply Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 30 }] }
+      },
+      "id": "n1",
+      "name": "Cron: Every 30min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "resource": "thread",
+        "filters": {
+          "labelIds": ["INBOX"],
+          "q": "newer_than:1h"
+        },
+        "returnAll": false,
+        "limit": 50
+      },
+      "id": "n2",
+      "name": "Gmail: List Recent Threads",
+      "type": "n8n-nodes-base.gmail",
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "schema": "public",
+        "table": "outreach_history",
+        "filterType": "string",
+        "filterString": "lead_status=eq.contacted",
+        "additionalFields": {}
+      },
+      "id": "n3",
+      "name": "Supabase: Fetch Active Threads",
+      "type": "n8n-nodes-base.supabase",
+      "position": [200, 150]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Cross-reference Gmail threads with our outreach history\nconst gmailThreads = $node['Gmail: List Recent Threads'].json;\nconst activeThreadIds = new Set(\n  $node['Supabase: Fetch Active Threads'].json.map(r => r.thread_id)\n);\n\nconst replies = [];\nconst threads = Array.isArray(gmailThreads) ? gmailThreads : [gmailThreads];\n\nfor (const thread of threads) {\n  if (activeThreadIds.has(thread.id)) {\n    const messages = thread.messages || [];\n    const hasReplyFromLead = messages.some(m => {\n      const from = (m.payload?.headers || []).find(h => h.name === 'From')?.value || '';\n      const isOurEmail = from.includes(process.env.GMAIL_USER || '');\n      const isOOO = (m.snippet || '').toLowerCase().includes('out of office');\n      const isBounce = from.includes('mailer-daemon') || from.includes('Mail Delivery Subsystem');\n      return !isOurEmail && !isOOO && !isBounce;\n    });\n    if (hasReplyFromLead) {\n      replies.push({ json: { thread_id: thread.id } });\n    }\n  }\n}\n\nreturn replies.length > 0 ? replies : [{ json: { _no_replies: true } }];"
+      },
+      "id": "n4",
+      "name": "Code: Find Replies",
+      "type": "n8n-nodes-base.code",
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [{ "value1": "={{ $json._no_replies }}", "value2": false }]
+        }
+      },
+      "id": "n5",
+      "name": "IF: Reply Found?",
+      "type": "n8n-nodes-base.if",
+      "position": [600, 0]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "schema": "public",
+        "table": "outreach_history",
+        "filterType": "string",
+        "filterString": "=thread_id=eq.{{ $json.thread_id }}",
+        "limit": 1,
+        "additionalFields": {}
+      },
+      "id": "n6",
+      "name": "Supabase: Get Lead from Thread",
+      "type": "n8n-nodes-base.supabase",
+      "position": [800, -100]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "leads",
+        "filterType": "string",
+        "filterString": "=id=eq.{{ $json.lead_id }}",
+        "updateFields": { "status": "replied", "replied_at": "={{ new Date().toISOString() }}" }
+      },
+      "id": "n7",
+      "name": "Supabase: Mark Lead Replied",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1000, -100]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "outreach_sequences",
+        "filterType": "string",
+        "filterString": "=lead_id=eq.{{ $node['Supabase: Get Lead from Thread'].json.lead_id }}&sent=eq.false",
+        "updateFields": { "cancelled": true, "cancel_reason": "replied" }
+      },
+      "id": "n8",
+      "name": "Supabase: Cancel Follow-ups",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1200, -100]
+    }
+  ],
+  "connections": {
+    "Cron: Every 30min": { "main": [[{ "node": "Gmail: List Recent Threads", "type": "main", "index": 0 }, { "node": "Supabase: Fetch Active Threads", "type": "main", "index": 0 }]] },
+    "Gmail: List Recent Threads": { "main": [[{ "node": "Code: Find Replies", "type": "main", "index": 0 }]] },
+    "Supabase: Fetch Active Threads": { "main": [[{ "node": "Code: Find Replies", "type": "main", "index": 0 }]] },
+    "Code: Find Replies": { "main": [[{ "node": "IF: Reply Found?", "type": "main", "index": 0 }]] },
+    "IF: Reply Found?": { "main": [[{ "node": "Supabase: Get Lead from Thread", "type": "main", "index": 0 }], []] },
+    "Supabase: Get Lead from Thread": { "main": [[{ "node": "Supabase: Mark Lead Replied", "type": "main", "index": 0 }]] },
+    "Supabase: Mark Lead Replied": { "main": [[{ "node": "Supabase: Cancel Follow-ups", "type": "main", "index": 0 }]] }
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "name": "WF-3b: Send Approved Email (Webhook)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "approve-and-send",
+        "responseMode": "onReceived",
+        "responseCode": 200
+      },
+      "id": "n1",
+      "name": "Webhook: Approve & Send",
+      "type": "n8n-nodes-base.webhook",
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate secret token\nconst secret = $input.first().json.headers['x-webhook-secret'];\nif (secret !== $env.N8N_WEBHOOK_SECRET) throw new Error('Unauthorized');\nreturn $input.all();"
+      },
+      "id": "n2",
+      "name": "Code: Validate Secret",
+      "type": "n8n-nodes-base.code",
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "schema": "public",
+        "table": "outreach_queue",
+        "id": "={{ $json.body.outreach_id }}"
+      },
+      "id": "n3",
+      "name": "Supabase: Fetch Approved Email",
+      "type": "n8n-nodes-base.supabase",
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "schema": "public",
+        "table": "leads",
+        "id": "={{ $json.lead_id }}"
+      },
+      "id": "n4",
+      "name": "Supabase: Fetch Lead",
+      "type": "n8n-nodes-base.supabase",
+      "position": [600, 0]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $node['Supabase: Fetch Approved Email'].json.subject }}",
+        "emailType": "text",
+        "message": "={{ $node['Supabase: Fetch Approved Email'].json.body }}",
+        "options": {}
+      },
+      "id": "n5",
+      "name": "Gmail: Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [800, 0]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "outreach_queue",
+        "filterType": "string",
+        "filterString": "=id=eq.{{ $node['Supabase: Fetch Approved Email'].json.id }}",
+        "updateFields": { "status": "sent", "sent_at": "={{ new Date().toISOString() }}" }
+      },
+      "id": "n6",
+      "name": "Supabase: Mark Sent",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1000, 0]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "outreach_history",
+        "columns": "lead_id,outreach_id,thread_id,message_id,subject,body_sent,sequence_step,sent_at",
+        "additionalFields": {}
+      },
+      "id": "n7",
+      "name": "Supabase: Log History",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "leads",
+        "filterType": "string",
+        "filterString": "=id=eq.{{ $node['Supabase: Fetch Lead'].json.id }}",
+        "updateFields": { "status": "contacted", "first_contacted_at": "={{ new Date().toISOString() }}" }
+      },
+      "id": "n8",
+      "name": "Supabase: Update Lead Status",
+      "type": "n8n-nodes-base.supabase",
+      "position": [1400, 0]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "outreach_sequences",
+        "columns": "lead_id,sequence_step,template_key,send_at",
+        "additionalFields": {}
+      },
+      "id": "n9",
+      "name": "Supabase: Schedule Follow-ups",
+      "type": "n8n-nodes-base.code",
+      "position": [1600, 0]
+    }
+  ],
+  "connections": {
+    "Webhook: Approve & Send": { "main": [[{ "node": "Code: Validate Secret", "type": "main", "index": 0 }]] },
+    "Code: Validate Secret": { "main": [[{ "node": "Supabase: Fetch Approved Email", "type": "main", "index": 0 }]] },
+    "Supabase: Fetch Approved Email": { "main": [[{ "node": "Supabase: Fetch Lead", "type": "main", "index": 0 }]] },
+    "Supabase: Fetch Lead": { "main": [[{ "node": "Gmail: Send Email", "type": "main", "index": 0 }]] },
+    "Gmail: Send Email": { "main": [[{ "node": "Supabase: Mark Sent", "type": "main", "index": 0 }]] },
+    "Supabase: Mark Sent": { "main": [[{ "node": "Supabase: Log History", "type": "main", "index": 0 }]] },
+    "Supabase: Log History": { "main": [[{ "node": "Supabase: Update Lead Status", "type": "main", "index": 0 }]] },
+    "Supabase: Update Lead Status": { "main": [[{ "node": "Supabase: Schedule Follow-ups", "type": "main", "index": 0 }]] }
+  }
+}

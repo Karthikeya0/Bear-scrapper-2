@@ -1,294 +1,352 @@
 'use client'
-export const dynamic = 'force-dynamic'
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { loadSettings } from '@/lib/settings'
+import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/Toast'
+import { Alert, EmptyState, PageHeader, ScoreBadge, Spinner, StatusBadge } from '@/components/ui'
+import { IconArrowLeft, IconCheck, IconExternal, IconMail, IconSparkle } from '@/components/icons'
+import { formatDate, formatDateTime, humanize } from '@/lib/format'
 
-type Lead = Record<string, unknown>
-type OutreachRecord = Record<string, unknown>
+type Lead = {
+  id: string; name: string | null; company: string | null; email: string | null; source: string | null
+  company_domain: string | null; profile_url: string | null; bio: string | null; post_content: string | null
+  ai_score: number | null; ai_reasoning: string | null; ai_signals: unknown; status: string; notes: string | null
+  outreach_eligible: boolean | null; created_at: string; first_contacted_at: string | null
+  replied_at: string | null; converted_at: string | null
+  website: string | null; x_handle: string | null; linkedin_url: string | null; founder_role: string | null; signals: unknown
+}
+type History = { id: string; subject: string | null; body_sent: string | null; body: string | null; sequence_step: number | null; sent_at: string | null }
+type Sequence = { id: string; sequence_step: number | null; step: number | null; template_key: string | null; send_at: string; sent: boolean | null; cancelled: boolean | null }
 
-const STATUS_FLOW = ['scored', 'contacted', 'replied', 'converted', 'dead', 'unsubscribed', 'disqualified']
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+const STATUS_FLOW = ['scored', 'contacted', 'replied', 'converted', 'dead', 'bounced', 'unsubscribed', 'disqualified']
+
+function toSignals(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String)
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed.map(String) : []
+    } catch {
+      return value ? [value] : []
+    }
+  }
+  return []
+}
+
+function safeUrl(value: string | null) {
+  if (!value) return null
+  try {
+    const u = new URL(value)
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.toString() : null
+  } catch {
+    return null
+  }
+}
 
 export default function LeadDetailPage() {
-  const { id } = useParams()
-  const router = useRouter()
+  const { id } = useParams<{ id: string }>()
   const supabase = useMemo(() => createClient(), [])
+  const toast = useToast()
 
   const [lead, setLead] = useState<Lead | null>(null)
-  const [history, setHistory] = useState<OutreachRecord[]>([])
-  const [sequences, setSequences] = useState<OutreachRecord[]>([])
+  const [history, setHistory] = useState<History[]>([])
+  const [sequences, setSequences] = useState<Sequence[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [savingStatus, setSavingStatus] = useState('')
   const [notes, setNotes] = useState('')
+  const [savingNotes, setSavingNotes] = useState(false)
+  const [emailDraft, setEmailDraft] = useState('')
+  const [savingEmail, setSavingEmail] = useState(false)
 
-  const fetchLead = useCallback(async () => {
-    const { data } = await supabase.from('leads').select('*').eq('id', id).single()
-    if (data) { setLead(data); setNotes(data.notes || '') }
-
-    const { data: hist } = await supabase
-      .from('outreach_history').select('*').eq('lead_id', id).order('sent_at', { ascending: false })
-    setHistory(hist || [])
-
-    const { data: seqs } = await supabase
-      .from('outreach_sequences').select('*').eq('lead_id', id).order('send_at')
-    setSequences(seqs || [])
-
+  const load = useCallback(async () => {
+    const [l, h, s] = await Promise.all([
+      supabase.from('leads').select('*').eq('id', id).maybeSingle(),
+      supabase.from('outreach_history').select('*').eq('lead_id', id).order('sent_at', { ascending: false }),
+      supabase.from('outreach_sequences').select('*').eq('lead_id', id).order('send_at'),
+    ])
+    if (l.error) setError(l.error.message)
+    if (l.data) {
+      setLead(l.data as Lead)
+      setNotes((l.data as Lead).notes ?? '')
+      setEmailDraft((l.data as Lead).email ?? '')
+    }
+    setHistory((h.data ?? []) as History[])
+    setSequences((s.data ?? []) as Sequence[])
     setLoading(false)
-  }, [id])
+  }, [id, supabase])
 
-  useEffect(() => { fetchLead() }, [fetchLead])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load
+    load()
+  }, [load])
 
-  async function updateStatus(newStatus: string) {
-    setSaving(true)
-    const updates: Record<string, unknown> = { status: newStatus }
-    if (newStatus === 'converted') updates.converted_at = new Date().toISOString()
-    await supabase.from('leads').update(updates).eq('id', id)
-    setLead(prev => prev ? { ...prev, ...updates } : prev)
-    setSaving(false)
+  async function update(fields: Partial<Lead>, successMsg: string) {
+    const { error } = await supabase.from('leads').update(fields).eq('id', id)
+    if (error) {
+      toast.error(`Could not save: ${error.message}`)
+      return false
+    }
+    setLead(prev => (prev ? { ...prev, ...fields } : prev))
+    toast.success(successMsg)
+    return true
+  }
+
+  async function setStatus(next: string) {
+    if (!lead || next === lead.status) return
+    setSavingStatus(next)
+    const fields: Partial<Lead> = { status: next }
+    if (next === 'converted' && !lead.converted_at) fields.converted_at = new Date().toISOString()
+    await update(fields, `Status changed to ${humanize(next)}.`)
+    setSavingStatus('')
+  }
+
+  // Adding an email makes a good lead draftable: WF-3 picks it up on its next run.
+  async function saveEmail() {
+    if (!lead) return
+    const email = emailDraft.trim().toLowerCase()
+    if (email && !EMAIL_RE.test(email)) return toast.error('That does not look like an email address.')
+    setSavingEmail(true)
+    const fields: Partial<Lead> = { email: email || null }
+    const { settings } = await loadSettings(supabase)
+    if (email && (lead.ai_score ?? 0) >= settings.min_score) fields.outreach_eligible = true
+    await update(fields, email ? 'Email saved. This lead will be drafted on the next “Draft new emails” run.' : 'Email removed.')
+    setSavingEmail(false)
   }
 
   async function saveNotes() {
-    setSaving(true)
-    await supabase.from('leads').update({ notes }).eq('id', id)
-    setSaving(false)
+    setSavingNotes(true)
+    await update({ notes }, 'Notes saved.')
+    setSavingNotes(false)
   }
 
-  async function markOutreachEligible(eligible: boolean) {
-    await supabase.from('leads').update({ outreach_eligible: eligible }).eq('id', id)
-    setLead(prev => prev ? { ...prev, outreach_eligible: eligible } : prev)
+  const back = (
+    <Link href="/leads" className="back-link">
+      <IconArrowLeft width={14} height={14} /> Leads
+    </Link>
+  )
+
+  if (loading) {
+    return (
+      <div className="stack">
+        <div className="skeleton" style={{ height: 56, width: 320 }} />
+        <div className="grid grid-aside">
+          <div className="skeleton" style={{ height: 320, borderRadius: 14 }} />
+          <div className="skeleton" style={{ height: 320, borderRadius: 14 }} />
+        </div>
+      </div>
+    )
   }
 
-  if (loading) return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {Array(4).fill(0).map((_, i) => (
-        <div key={i} className="skeleton" style={{ height: 80, borderRadius: 'var(--radius)' }} />
-      ))}
-    </div>
-  )
+  if (!lead) {
+    return (
+      <>
+        <PageHeader title="Lead not found" back={back} />
+        {error ? <Alert>{error}</Alert> : <div className="card"><EmptyState title="This lead doesn't exist or was removed." /></div>}
+      </>
+    )
+  }
 
-  if (!lead) return (
-    <div className="empty-state">
-      <div className="empty-state-title">Lead not found</div>
-      <Link href="/leads" className="btn btn-ghost" style={{ marginTop: '1rem' }}>← Back to leads</Link>
-    </div>
-  )
-
-  const score = lead.ai_score as number || 0
-  const scoreClass = score >= 70 ? 'score-high' : score >= 40 ? 'score-mid' : 'score-low'
-  const signals = (lead.ai_signals as string[]) || []
+  const signals = [...new Set([...toSignals(lead.signals), ...toSignals(lead.ai_signals)])]
+  const profileUrl = safeUrl(lead.profile_url)
+  const websiteUrl = safeUrl(lead.website) ?? (lead.company_domain ? `https://${lead.company_domain}` : null)
+  const xUrl = lead.x_handle ? `https://x.com/${encodeURIComponent(lead.x_handle)}` : null
+  const linkedinUrl = safeUrl(lead.linkedin_url)
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(`${lead.name ?? ''} ${lead.company ?? ''} founder email`.trim())}`
+  const pendingSequences = sequences.filter(s => !s.sent && !s.cancelled)
 
   return (
     <>
-      {/* Header */}
-      <div className="page-header">
-        <div>
-          <Link href="/leads" style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
-            ← Back to leads
-          </Link>
-          <h1 className="page-title">{(lead.name as string) || 'Unknown'}</h1>
-          <p className="page-subtitle">{(lead.company as string) || '—'} · {lead.source as string}</p>
-        </div>
-        <div className="page-actions">
-          <span className={`score-pill ${scoreClass}`} style={{ fontSize: '1.25rem', padding: '0.375rem 0.875rem' }}>
-            {score}
-          </span>
-          <span className={`badge badge-${lead.status}`}>
-            {lead.status as string}
-          </span>
-        </div>
-      </div>
+      <PageHeader
+        back={back}
+        title={lead.name || 'Unnamed lead'}
+        description={[lead.company, lead.source].filter(Boolean).join(' · ') || undefined}
+        actions={
+          <>
+            <ScoreBadge score={lead.ai_score} large />
+            <StatusBadge status={lead.status} />
+          </>
+        }
+      />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.5rem' }}>
-        {/* Main Column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-          {/* Profile */}
-          <div className="card">
-            <h3 style={{ marginBottom: '1rem' }}>Profile</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.875rem' }}>
-              {([
-                { label: 'Name', value: lead.name as string | null },
-                { label: 'Company', value: lead.company as string | null },
-                { label: 'Email', value: lead.email as string | null },
-                { label: 'Domain', value: lead.company_domain as string | null },
-                { label: 'Profile URL', value: lead.profile_url as string | null, isLink: true },
-                { label: 'Source', value: lead.source as string | null },
-              ] as { label: string; value: string | null; isLink?: boolean }[]).map(f => (
-                <div key={f.label}>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.125rem' }}>{f.label}</div>
-                  {f.isLink && f.value ? (
-                    <a href={f.value as string} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all' }}>
-                      {f.value as string}
-                    </a>
-                  ) : (
-                    <span style={{ color: f.value ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                      {(f.value as string) || '—'}
-                    </span>
+      <div className="grid grid-aside">
+        <div className="stack">
+          <div className="card card-pad">
+            <div className="section-title">Profile</div>
+            <dl className="dl">
+              <div><dt>Name</dt><dd>{lead.name || '—'}</dd></div>
+              <div><dt>Company</dt><dd>{lead.company || '—'}</dd></div>
+              {lead.founder_role && <div><dt>Role</dt><dd>{lead.founder_role}</dd></div>}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <dt>Email</dt>
+                <dd>
+                  <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    <input
+                      className="input"
+                      type="email"
+                      value={emailDraft}
+                      onChange={e => setEmailDraft(e.target.value)}
+                      placeholder="founder@company.com"
+                      aria-label="Email address"
+                      style={{ flex: '1 1 220px', maxWidth: 360 }}
+                    />
+                    <button className="btn btn-sm btn-primary" onClick={saveEmail} disabled={savingEmail || emailDraft.trim().toLowerCase() === (lead.email ?? '')}>
+                      {savingEmail && <Spinner />} Save email
+                    </button>
+                  </div>
+                  {!lead.email && (
+                    <div className="hint" style={{ marginTop: 6 }}>
+                      Not found automatically. Check their site, X or LinkedIn, or{' '}
+                      <a className="link" href={searchUrl} target="_blank" rel="noopener noreferrer">search Google</a>, then paste it here.
+                    </div>
                   )}
-                </div>
-              ))}
-            </div>
+                </dd>
+              </div>
+              <div>
+                <dt>Links</dt>
+                <dd className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
+                  {websiteUrl && <a className="link row" style={{ display: 'inline-flex' }} href={websiteUrl} target="_blank" rel="noopener noreferrer">Website <IconExternal width={13} height={13} /></a>}
+                  {xUrl && <a className="link row" style={{ display: 'inline-flex' }} href={xUrl} target="_blank" rel="noopener noreferrer">@{lead.x_handle} <IconExternal width={13} height={13} /></a>}
+                  {linkedinUrl && <a className="link row" style={{ display: 'inline-flex' }} href={linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn <IconExternal width={13} height={13} /></a>}
+                  {!websiteUrl && !xUrl && !linkedinUrl && '—'}
+                </dd>
+              </div>
+              <div><dt>Domain</dt><dd>{lead.company_domain || '—'}</dd></div>
+              <div>
+                <dt>Profile</dt>
+                <dd>
+                  {profileUrl ? (
+                    <a className="link row" href={profileUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex' }}>
+                      Open profile <IconExternal width={13} height={13} />
+                    </a>
+                  ) : '—'}
+                </dd>
+              </div>
+              <div><dt>Source</dt><dd>{lead.source ? <span className="tag">{lead.source}</span> : '—'}</dd></div>
+              {lead.bio && <div style={{ gridColumn: '1 / -1' }}><dt>Bio</dt><dd>{lead.bio}</dd></div>}
+            </dl>
           </div>
 
-
-          <div className="card">
-            <h3 style={{ marginBottom: '1rem' }}>AI Analysis</h3>
-            <div style={{ marginBottom: '1rem' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>REASONING</div>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                {(lead.ai_reasoning as string) || 'No reasoning recorded.'}
-              </p>
+          <div className="card card-pad">
+            <div className="row" style={{ marginBottom: 12 }}>
+              <IconSparkle width={16} height={16} style={{ color: 'var(--accent)' }} />
+              <div className="section-title" style={{ margin: 0 }}>AI analysis</div>
             </div>
+            <p className="prose">{lead.ai_reasoning || 'No reasoning was recorded for this lead.'}</p>
             {signals.length > 0 && (
-              <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>INTENT SIGNALS</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {signals.map((s, i) => (
-                    <span key={i} className="badge badge-scored">{s}</span>
-                  ))}
-                </div>
+              <div className="row" style={{ flexWrap: 'wrap', marginTop: 14 }}>
+                {signals.map((s, i) => <span key={i} className="badge accent plain as-is">{s}</span>)}
               </div>
             )}
           </div>
 
-          {/* Post Content */}
-          {(lead.post_content as string) && (
-            <div className="card">
-              <h3 style={{ marginBottom: '0.75rem' }}>Source Content</h3>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
-                {(lead.post_content as string).substring(0, 1000)}
-                {(lead.post_content as string).length > 1000 && '…'}
+          {lead.post_content && (
+            <div className="card card-pad">
+              <div className="section-title">Source content</div>
+              <p className="prose">
+                {lead.post_content.slice(0, 1500)}
+                {lead.post_content.length > 1500 && '…'}
               </p>
             </div>
           )}
 
-          {/* Outreach History */}
-          <div className="card">
-            <h3 style={{ marginBottom: '1rem' }}>Outreach History</h3>
+          <div className="card card-pad">
+            <div className="section-title">Outreach history</div>
             {history.length === 0 ? (
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>No outreach sent yet.</p>
+              <p className="muted">No emails have been sent to this lead yet.</p>
             ) : (
               <div className="timeline">
-                {history.map((h, i) => (
-                  <div key={i} className="timeline-item">
-                    <div className="timeline-dot">✉</div>
-                    <div className="timeline-content">
-                      <div className="timeline-title">Step {h.sequence_step as number}: {h.subject as string}</div>
-                      <div className="timeline-time">{new Date(h.sent_at as string).toLocaleString()}</div>
+                {history.map(h => (
+                  <div key={h.id} className="tl-item">
+                    <div className="tl-dot"><IconMail /></div>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="tl-title">
+                        {h.sequence_step ? `Step ${h.sequence_step} · ` : ''}
+                        {h.subject || '(no subject)'}
+                      </div>
+                      <div className="tl-time">{formatDateTime(h.sent_at)}</div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Pending Sequences */}
-          {sequences.filter(s => !s.sent && !s.cancelled).length > 0 && (
-            <div className="card">
-              <h3 style={{ marginBottom: '1rem' }}>Scheduled Follow-ups</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {sequences.filter(s => !s.sent && !s.cancelled).map((s, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                    <span>Step {s.sequence_step as number} — {s.template_key as string}</span>
-                    <span style={{ color: 'var(--text-muted)' }}>
-                      {new Date(s.send_at as string).toLocaleDateString()}
-                    </span>
+            {pendingSequences.length > 0 && (
+              <>
+                <div className="section-title" style={{ marginTop: 18 }}>Scheduled follow-ups</div>
+                {pendingSequences.map(s => (
+                  <div key={s.id} className="kv">
+                    <span>Step {s.sequence_step ?? s.step ?? '—'} {s.template_key ? `· ${humanize(s.template_key)}` : ''}</span>
+                    <span>{formatDate(s.send_at)}</span>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </div>
 
-          {/* Notes */}
-          <div className="card">
-            <h3 style={{ marginBottom: '1rem' }}>Notes</h3>
+          <div className="card card-pad">
+            <div className="section-title">Notes</div>
             <textarea
-              className="form-textarea"
+              className="textarea"
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="Add notes about this lead…"
-              style={{ marginBottom: '0.75rem' }}
+              placeholder="Context, call notes, next steps…"
             />
-            <button className="btn btn-ghost btn-sm" onClick={saveNotes} disabled={saving}>
-              {saving ? 'Saving…' : 'Save notes'}
-            </button>
+            <div className="row" style={{ marginTop: 10, justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary btn-sm" onClick={saveNotes} disabled={savingNotes || notes === (lead.notes ?? '')}>
+                {savingNotes && <Spinner />} Save notes
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Right Sidebar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-          {/* Status Actions */}
-          <div className="card">
-            <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-              Update Status
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div className="stack sticky">
+          <div className="card card-pad">
+            <div className="section-title">Status</div>
+            <div className="status-list">
               {STATUS_FLOW.map(s => (
                 <button
                   key={s}
-                  className={`btn btn-ghost btn-sm ${lead.status === s ? 'active' : ''}`}
-                  onClick={() => updateStatus(s)}
-                  disabled={saving}
-                  style={{
-                    justifyContent: 'space-between',
-                    background: lead.status === s ? 'var(--accent-glow)' : undefined,
-                    color: lead.status === s ? 'var(--accent-light)' : undefined,
-                    borderColor: lead.status === s ? 'var(--accent)' : undefined,
-                  }}
+                  className={`status-opt ${lead.status === s ? 'active' : ''}`}
+                  onClick={() => setStatus(s)}
+                  disabled={!!savingStatus}
                 >
-                  <span style={{ textTransform: 'capitalize' }}>{s}</span>
-                  {lead.status === s && <span>✓</span>}
+                  <span>{humanize(s)}</span>
+                  {savingStatus === s ? <Spinner /> : lead.status === s ? <IconCheck width={15} height={15} /> : null}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Outreach Toggle */}
-          <div className="card">
-            <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-              Outreach
-            </h4>
-            <div style={{ fontSize: '0.875rem', marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
-              Eligible for automated outreach:
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                className={`btn btn-sm ${lead.outreach_eligible ? 'btn-success' : 'btn-ghost'}`}
-                onClick={() => markOutreachEligible(true)}
-              >
-                ✓ Yes
-              </button>
-              <button
-                className={`btn btn-sm ${!lead.outreach_eligible ? 'btn-danger' : 'btn-ghost'}`}
-                onClick={() => markOutreachEligible(false)}
-              >
-                ✗ No
-              </button>
-            </div>
+          <div className="card card-pad">
+            <div className="section-title">Automated outreach</div>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={lead.outreach_eligible !== false}
+                onChange={e => update({ outreach_eligible: e.target.checked }, e.target.checked ? 'Lead included in outreach.' : 'Lead excluded from outreach.')}
+              />
+              Eligible for AI-drafted emails
+            </label>
+            <p className="hint" style={{ marginTop: 8 }}>WF-3 only drafts emails for eligible leads with an email and a score at or above your minimum (Settings).</p>
           </div>
 
-          {/* Timestamps */}
-          <div className="card">
-            <h4 style={{ marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-              Timeline
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', fontSize: '0.8125rem' }}>
-              {[
-                { label: 'Scraped', value: lead.created_at },
-                { label: 'First contacted', value: lead.first_contacted_at },
-                { label: 'Replied', value: lead.replied_at },
-                { label: 'Converted', value: lead.converted_at },
-              ].map(t => (
-                <div key={t.label} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>{t.label}</span>
-                  <span style={{ color: t.value ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                    {t.value ? new Date(t.value as string).toLocaleDateString() : '—'}
-                  </span>
-                </div>
-              ))}
-            </div>
+          <div className="card card-pad">
+            <div className="section-title">Timeline</div>
+            {[
+              ['Scraped', lead.created_at],
+              ['First contacted', lead.first_contacted_at],
+              ['Replied', lead.replied_at],
+              ['Converted', lead.converted_at],
+            ].map(([label, value]) => (
+              <div key={label} className="kv">
+                <span>{label}</span>
+                <span>{formatDate(value)}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

@@ -3,12 +3,7 @@
   "outputDirectory": ".next",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["sin1"],
-  "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key",
-    "N8N_BASE_URL": "@n8n_base_url",
-    "N8N_WEBHOOK_SECRET": "@n8n_webhook_secret"
-  }
+  "regions": [
+    "sin1"
+  ]
 }

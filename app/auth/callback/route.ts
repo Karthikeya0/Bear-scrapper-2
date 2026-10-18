@@ -1,5 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { homeForRole, normalizeRole } from '@/lib/env'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -9,25 +10,20 @@ export async function GET(request: Request) {
   if (code) {
     const supabase = await createClient()
     const { error, data } = await supabase.auth.exchangeCodeForSession(code)
-    
+
     if (!error && data.user) {
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('role')
         .eq('id', data.user.id)
-        .single()
-        
-      const role = profile?.role || 'editor'
-      
-      let redirectPath = '/dashboard'
-      if (role === 'editor') redirectPath = '/pending'
-      if (role === 'client') redirectPath = '/portal/dashboard'
-      
-      // If next param is provided and valid for the role, use it (we just use role defaults for now)
-      return NextResponse.redirect(`${origin}${redirectPath}`)
+        .maybeSingle()
+
+      // Only honour same-origin relative paths; the proxy re-checks role access on arrival.
+      const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : null
+      return NextResponse.redirect(`${origin}${safeNext ?? homeForRole(normalizeRole(profile?.role))}`)
     }
+    return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error?.message ?? 'Sign-in failed')}`)
   }
 
-  // Fallback
-  return NextResponse.redirect(`${origin}/login`)
+  return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent('The sign-in link is invalid or has expired.')}`)
 }

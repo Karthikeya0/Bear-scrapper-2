@@ -1,0 +1,56 @@
+# Bear Radar on an always-on server: n8n behind Caddy (automatic HTTPS).
+# Usage: see README.md.  Everything is configured in .env (copy .env.example).
+name: bear-radar
+
+services:
+  n8n:
+    image: n8nio/n8n:${N8N_VERSION:-2.43.6}
+    restart: unless-stopped
+    environment:
+      N8N_HOST: ${N8N_DOMAIN:?Set N8N_DOMAIN in .env}
+      N8N_PORT: 5678
+      # IPv4 only: n8n's default (::) fails on hosts without IPv6.
+      N8N_LISTEN_ADDRESS: 0.0.0.0
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: https://${N8N_DOMAIN}/
+      N8N_EDITOR_BASE_URL: https://${N8N_DOMAIN}/
+      N8N_PROXY_HOPS: 1
+      # Must stay the same forever: it encrypts the saved credentials. Copied from your Mac when migrating.
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Set N8N_ENCRYPTION_KEY in .env (setup.sh does this)}
+      GENERIC_TIMEZONE: ${TIMEZONE:-Asia/Kolkata}
+      TZ: ${TIMEZONE:-Asia/Kolkata}
+      N8N_SECURE_COOKIE: "true"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      DB_SQLITE_POOL_SIZE: 2
+      # Keep 14 days of execution history so the disk never fills up.
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: 336
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    expose:
+      - "5678"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  caddy:
+    image: caddy:${CADDY_VERSION:-2.10-alpine}
+    restart: unless-stopped
+    depends_on:
+      - n8n
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      N8N_DOMAIN: ${N8N_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+      - ./data/caddy-config:/config

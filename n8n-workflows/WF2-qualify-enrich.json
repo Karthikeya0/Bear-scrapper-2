@@ -1,0 +1,859 @@
+{
+  "name": "WF-2: Qualify & Enrich",
+  "nodes": [
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000028",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000030",
+      "name": "Dashboard: Score & enrich",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wf2-processor",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000029",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bearDashboardSecret",
+          "name": "Bear dashboard secret"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000044",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        100
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000031",
+              "name": "supabase_url",
+              "value": "https://YOUR-PROJECT-REF.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000032",
+              "name": "batch_size",
+              "value": 25,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000033",
+              "name": "max_team_size",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000034",
+              "name": "max_launch_age_days",
+              "value": 90,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000035",
+              "name": "max_domain_age_days",
+              "value": 730,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000036",
+              "name": "just_launched_days",
+              "value": 30,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000037",
+              "name": "min_score",
+              "value": 60,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000038",
+              "name": "rdap_base",
+              "value": "https://rdap.org",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000039",
+              "name": "hn_user_api",
+              "value": "https://hacker-news.firebaseio.com/v0",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000040",
+              "name": "hunter_url",
+              "value": "https://api.hunter.io/v2/domain-search",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000041",
+              "name": "groq_url",
+              "value": "https://api.groq.com/openai/v1/chat/completions",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000042",
+              "name": "groq_model",
+              "value": "openai/gpt-oss-120b",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000043",
+              "name": "started_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000045",
+      "name": "Fetch raw leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/raw_leads?status=eq.raw&order=created_at.desc&limit={{ $json.batch_size }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000046",
+      "name": "Free checks & qualify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// WF-2 \"Free checks & qualify\" (Code node, Run Once for All Items).\n// Runs only free lookups, so paid Hunter credits are spent on qualified leads only:\n//   1. resolve the real website (follows Product Hunt / BetaList redirects)\n//   2. homepage: is there a product video? X / LinkedIn links?\n//   3. domain age via RDAP (free, public registry data)\n//   4. small + new + buying-signal rules from the Config node\n//   5. for qualified leads only: a free email search (site pages + Hacker News profile), so Hunter\n//      credits are only spent when the founder's email is not published anywhere\n// Output: one item per raw lead with `qualified` true/false and `disqualify_reason`.\n\nconst cfg = $('Config').first().json\nconst MAX_TEAM = Number(cfg.max_team_size) || 3\nconst MAX_DOMAIN_DAYS = Number(cfg.max_domain_age_days) || 730\nconst MAX_LAUNCH_DAYS = Number(cfg.max_launch_age_days) || 90\nconst JUST_LAUNCHED_DAYS = Number(cfg.just_launched_days) || 30\nconst RDAP_BASE = String(cfg.rdap_base || 'https://rdap.org').replace(/\\/+$/, '')\nconst HN_API = String(cfg.hn_user_api || 'https://hacker-news.firebaseio.com/v0').replace(/\\/+$/, '')\nconst UA = 'Mozilla/5.0 (compatible; BearRadar/1.0; +https://bear.studio)'\nconst DAY = 86400000\n\nconst VIDEO_PATTERNS = [\n  /<video[\\s>]/i,\n  /youtube(?:-nocookie)?\\.com\\/(?:embed|watch)|youtu\\.be\\//i,\n  /player\\.vimeo\\.com|vimeo\\.com\\/\\d+/i,\n  /fast\\.wistia\\.(?:net|com)|wistia\\.com\\/medias/i,\n  /loom\\.com\\/(?:embed|share)/i,\n  /vidyard\\.com|videoask\\.com|mux\\.com\\/|stream\\.cloudflare|cloudflarestream\\.com/i,\n  /\\.(?:mp4|webm)(?:[\"'?#\\s])/i,\n]\nconst NON_SITE = /(?:^|\\.)(producthunt\\.com|betalist\\.com|github\\.com|gitlab\\.com|apps\\.apple\\.com|play\\.google\\.com|youtube\\.com|medium\\.com)$/i\n\n// n8n's Code-node sandbox has no global URL, so parse URLs with a regex.\nconst URL_RE = /^(https?):\\/\\/((?:[^@\\/?#]*@)?([^\\/?#:]+)(?::\\d+)?)([^?#]*)/i\nconst hostOf = url => {\n  const m = String(url || '').match(URL_RE)\n  return m ? m[3].toLowerCase().replace(/^www\\./, '') : null\n}\n// Resolve a redirect Location / href against the page it came from.\nconst resolveUrl = (ref, base) => {\n  ref = String(ref || '').trim()\n  if (/^https?:\\/\\//i.test(ref)) return ref\n  const m = String(base).match(URL_RE)\n  if (!m) return ref\n  const [, proto, authority, , path] = m\n  if (ref.startsWith('//')) return `${proto}:${ref}`\n  if (ref.startsWith('/')) return `${proto}://${authority}${ref}`\n  return `${proto}://${authority}${(path || '/').replace(/[^/]*$/, '')}${ref}`\n}\n// Registrable domain for RDAP (good enough for common TLDs, incl. co.uk-style two-part suffixes).\nconst registrable = host => {\n  const parts = host.split('.')\n  const twoPart = /^(co|com|org|net|ac|gov|edu)\\.[a-z]{2}$/.test(parts.slice(-2).join('.'))\n  return parts.slice(twoPart ? -3 : -2).join('.')\n}\n\nasync function get(url, extra = {}) {\n  return this.helpers.httpRequest({\n    url,\n    method: 'GET',\n    headers: { 'User-Agent': UA, Accept: 'text/html,application/json;q=0.9,*/*;q=0.8' },\n    timeout: 12000,\n    returnFullResponse: true,\n    ignoreHttpStatusErrors: true,\n    encoding: 'text',\n    json: false,\n    ...extra,\n  })\n}\n\n// Follow redirects ourselves so we know the final URL (Product Hunt /r/ links, BetaList visit links).\nasync function resolveSite(startUrl) {\n  let url = startUrl\n  for (let hop = 0; hop < 6; hop++) {\n    const res = await get.call(this, url, { disableFollowRedirect: true })\n    const status = res.statusCode\n    const location = res.headers && (res.headers.location || res.headers.Location)\n    if (status >= 300 && status < 400 && location) {\n      url = resolveUrl(location, url)\n      continue\n    }\n    const html = typeof res.body === 'string' ? res.body : String(res.body ?? '')\n    // BetaList / Product Hunt pages: jump to the startup's outbound link if present.\n    const host = hostOf(url)\n    if (host && NON_SITE.test(host) && /betalist\\.com|producthunt\\.com/.test(host)) {\n      const out =\n        html.match(/href=\"(\\/startups\\/[^\"]+\\/visit)\"/i)?.[1] ||\n        html.match(/href=\"(https?:\\/\\/[^\"]+)\"[^>]*(?:rel=\"[^\"]*nofollow[^\"]*\")[^>]*>\\s*(?:visit|website)/i)?.[1]\n      if (out) {\n        url = resolveUrl(out, url)\n        continue\n      }\n    }\n    return { url, status, html: html.slice(0, 600000) }\n  }\n  return { url, status: 0, html: '' }\n}\n\nfunction socials(html) {\n  const handles = [...html.matchAll(/https?:\\/\\/(?:www\\.)?(?:twitter|x)\\.com\\/(@?\\w{1,15})(?=[\"'\\/?#\\s])/gi)]\n    .map(m => m[1].replace(/^@/, ''))\n    .filter(h => !/^(share|intent|home|search|hashtag|i|privacy|tos|login|signup)$/i.test(h))\n  const linkedin = html.match(/https?:\\/\\/(?:[a-z]{2,3}\\.)?linkedin\\.com\\/(?:company|in)\\/[\\w\\-%.]+/i)?.[0] || null\n  return { x_handle: handles[0] || null, linkedin_url: linkedin }\n}\n\n// ---------- free email search ----------\nconst FREE_MAIL = /^(gmail|googlemail|outlook|hotmail|live|icloud|me|proton|protonmail|pm|hey|fastmail|yahoo|zoho)\\.[a-z.]+$/i\nconst JUNK_LOCAL = /^(no-?reply|do-?not-?reply|donotreply|privacy|legal|abuse|postmaster|security|dmca|gdpr|dpo|unsubscribe|bounce[s]?|mailer-daemon|example|user|username|email|name|your|yourname|you|test|someone|john|jane|john\\.doe|jane\\.doe|wordpress|admin|webmaster|careers|jobs|press|billing|invoices?)$/i\nconst JUNK_DOMAIN = /(example\\.(com|org)|domain\\.com|email\\.com|sentry\\.io|wixpress\\.com|sentry-next\\.wixpress\\.com|yourcompany|company\\.com|mysite\\.com|godaddy\\.com|squarespace\\.com|w3\\.org|schema\\.org)$/i\nconst EMAIL_RE = /[a-z0-9][a-z0-9._%+-]{0,63}@[a-z0-9.-]+\\.[a-z]{2,24}/gi\n\nconst decodeEntities = t => String(t || '')\n  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))\n  .replace(/&#(\\d+);/g, (_, d) => String.fromCharCode(Number(d)))\n  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\")\n// Cloudflare hides emails as <a data-cfemail=\"hex\">; the first byte is the XOR key.\nconst cfDecode = hex => {\n  try {\n    const key = parseInt(hex.slice(0, 2), 16)\n    let out = ''\n    for (let i = 2; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ key)\n    return out\n  } catch { return '' }\n}\n// \"sam [at] acme [dot] com\" / \"sam (at) acme.com\" style text.\nconst deobfuscate = t => t\n  .replace(/\\s*[\\[(<{]\\s*at\\s*[\\])>}]\\s*/gi, '@')\n  .replace(/\\s*[\\[(<{]\\s*dot\\s*[\\])>}]\\s*/gi, '.')\n  .replace(/\\s+at\\s+(?=[a-z0-9-]+\\s*(?:\\.|\\s+dot\\s+)[a-z]{2,})/gi, '@')\n  .replace(/\\s+dot\\s+(?=[a-z]{2,}\\b)/gi, '.')\n\nfunction emailsIn(html) {\n  const text = decodeEntities(html)\n  const found = [...text.matchAll(EMAIL_RE)].map(m => m[0])\n  for (const m of html.matchAll(/data-cfemail=\"([0-9a-f]+)\"/gi)) found.push(cfDecode(m[1]))\n  for (const m of text.matchAll(/mailto:([^\"'?\\s>]+)/gi)) found.push(decodeURIComponent(m[1]))\n  return found\n}\n\nfunction rankEmails(list, companyHost, personName) {\n  const base = registrable(companyHost || '')\n  const first = String(personName || '').trim().split(/\\s+/)[0]?.toLowerCase() || ''\n  const seen = new Set()\n  return list\n    .map(e => String(e || '').trim().toLowerCase().replace(/^mailto:/, '').replace(/[.,;:)\\]]+$/, ''))\n    .filter(e => {\n      const [local, domain] = e.split('@')\n      if (!local || !domain || seen.has(e)) return false\n      seen.add(e)\n      if (/\\.(png|jpe?g|gif|svg|webp|avif|ico|css|js)$/i.test(e) || /\\d+x\\d*$/.test(local)) return false\n      if (JUNK_LOCAL.test(local) || JUNK_DOMAIN.test(domain)) return false\n      return registrable(domain) === base || FREE_MAIL.test(domain)\n    })\n    .map(e => {\n      const local = e.split('@')[0]\n      let score = 0\n      if (first && first.length > 1 && local.includes(first)) score += 60\n      if (/^(founder|founders|ceo|cofounder|co-founder)$/.test(local)) score += 50\n      else if (/^(hi|hello|hey|yo)$/.test(local)) score += 35\n      else if (/^(contact|team|info|mail|inbox|general)$/.test(local)) score += 25\n      else if (/^(support|help|sales|feedback|partners?|marketing)$/.test(local)) score += 10\n      else score += 40 // looks like a person's own address\n      if (FREE_MAIL.test(e.split('@')[1])) score -= 5\n      return { email: e, score }\n    })\n    .sort((a, b) => b.score - a.score)\n}\n\nasync function hnAbout(user) {\n  try {\n    const res = await get.call(this, `${HN_API}/user/${encodeURIComponent(user)}.json`, { headers: { 'User-Agent': UA, Accept: 'application/json' } })\n    if (res.statusCode !== 200) return ''\n    const data = typeof res.body === 'string' ? JSON.parse(res.body) : res.body\n    return deobfuscate(decodeEntities(String((data && data.about) || '').replace(/<[^>]+>/g, ' ')))\n  } catch { return '' }\n}\n\n// Homepage first, then a few likely pages on the same site; stops at the first good address.\nasync function findEmail(site, lead, host) {\n  const person = lead.name\n  let ranked = rankEmails(emailsIn(site.html), host, person)\n  if (lead.source === 'hackernews' && lead.name && !(ranked[0] && ranked[0].score >= 60)) {\n    const about = await hnAbout.call(this, lead.name)\n    const fromHn = rankEmails(emailsIn(about), host, person).map(e => ({ ...e, score: e.score + 15 }))\n    ranked = [...fromHn, ...ranked].sort((a, b) => b.score - a.score)\n  }\n  if (ranked[0] && ranked[0].score >= 40) return { email: ranked[0].email, from: 'website' }\n  const linked = [...site.html.matchAll(/href=\"([^\"#?]*(?:contact|about|team|founder|imprint|impressum)[^\"#?]*)\"/gi)]\n    .map(m => resolveUrl(m[1], site.url))\n    .filter(u => hostOf(u) === host)\n  const guesses = ['/contact', '/about', '/team'].map(p => resolveUrl(p, site.url))\n  for (const url of [...new Set([...linked, ...guesses])].slice(0, 4)) {\n    try {\n      const res = await get.call(this, url)\n      if (res.statusCode >= 400) continue\n      const more = rankEmails(emailsIn(String(res.body ?? '').slice(0, 400000)), host, person)\n      ranked = [...ranked, ...more].sort((a, b) => b.score - a.score)\n      if (ranked[0] && ranked[0].score >= 40) break\n    } catch { /* page missing: try the next one */ }\n  }\n  return ranked[0] ? { email: ranked[0].email, from: 'website' } : null\n}\n\nasync function domainCreated(domain) {\n  try {\n    const res = await get.call(this, `${RDAP_BASE}/domain/${domain}`, {\n      headers: { 'User-Agent': UA, Accept: 'application/rdap+json, application/json' },\n    })\n    if (res.statusCode !== 200) return null\n    const data = typeof res.body === 'string' ? JSON.parse(res.body) : res.body\n    const ev = (data.events || []).find(e => /registration/i.test(e.eventAction))\n    return ev && !Number.isNaN(Date.parse(ev.eventDate)) ? new Date(ev.eventDate).toISOString() : null\n  } catch {\n    return null\n  }\n}\n\nasync function check(lead) {\n  const out = { ...lead, has_video: null, domain_created_at: null, signals: [], qualified: false, disqualify_reason: null }\n  const age = d => (d ? (Date.now() - Date.parse(d)) / DAY : null)\n\n  // ---- small: team size ----\n  if (lead.team_size && lead.team_size > MAX_TEAM) {\n    out.disqualify_reason = `team_too_big (${lead.team_size} > ${MAX_TEAM})`\n    return out\n  }\n\n  // ---- website ----\n  if (!lead.website) {\n    out.disqualify_reason = 'no_website'\n    return out\n  }\n  let site\n  try {\n    site = await resolveSite.call(this, lead.website)\n  } catch (e) {\n    out.disqualify_reason = `site_unreachable (${String(e.message || e).slice(0, 80)})`\n    return out\n  }\n  const host = hostOf(site.url)\n  if (!host || NON_SITE.test(host) || site.status >= 400 || !site.html) {\n    out.disqualify_reason = !host || NON_SITE.test(host) ? 'website_unresolved' : `site_unreachable (HTTP ${site.status})`\n    return out\n  }\n  out.website = site.url\n  out.company_domain = host\n  out.has_video = VIDEO_PATTERNS.some(re => re.test(site.html))\n  const s = socials(site.html)\n  out.x_handle = lead.x_handle || s.x_handle\n  out.linkedin_url = lead.linkedin_url || s.linkedin_url\n\n  // ---- new: launch date or young domain ----\n  out.domain_created_at = await domainCreated.call(this, registrable(host))\n  const launchAge = age(lead.launched_at)\n  const domainAge = age(out.domain_created_at)\n  const isNew = (launchAge != null && launchAge <= MAX_LAUNCH_DAYS) || (domainAge != null && domainAge <= MAX_DOMAIN_DAYS)\n  if (!isNew) {\n    out.disqualify_reason = `not_new (launched ${launchAge == null ? '?' : Math.round(launchAge)}d ago, domain ${domainAge == null ? '?' : Math.round(domainAge)}d old)`\n    return out\n  }\n\n  // ---- signals ----\n  if (launchAge != null && launchAge <= JUST_LAUNCHED_DAYS) out.signals.push('just_launched')\n  if (domainAge != null && domainAge <= 365) out.signals.push('new_domain')\n  if (out.has_video === false) out.signals.push('no_video')\n  if (lead.team_size && lead.team_size <= MAX_TEAM) out.signals.push('tiny_team')\n  if (out.x_handle) out.signals.push('has_x')\n  if (out.linkedin_url) out.signals.push('has_linkedin')\n\n  // ---- buying signal required: just launched, or no video to show their product ----\n  if (!out.signals.includes('just_launched') && !out.signals.includes('no_video')) {\n    out.disqualify_reason = 'no_buying_signal (already has a video and launched a while ago)'\n    return out\n  }\n  out.qualified = true\n  try {\n    const found = await findEmail.call(this, site, lead, host)\n    out.site_email = found ? found.email : null\n  } catch {\n    out.site_email = null\n  }\n  return out\n}\n\nconst leads = $input.all().map(i => i.json).filter(l => l && l.id)\nconst results = []\n// Small parallel batches: fast, but polite to the sites and RDAP servers we hit.\nfor (let i = 0; i < leads.length; i += 4) {\n  const batch = leads.slice(i, i + 4)\n  const checked = await Promise.all(\n    batch.map(l =>\n      check.call(this, l).catch(e => ({\n        ...l,\n        qualified: false,\n        signals: [],\n        disqualify_reason: `check_failed (${String(e.message || e).slice(0, 80)})`,\n      })),\n    ),\n  )\n  results.push(...checked)\n}\nreturn results.map(json => ({ json }))\n"
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000047",
+      "name": "Run summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        360
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// WF-2 \"Run summary\" (Code node, Run Once for All Items).\n// One workflow_logs row per run: how many raw leads were checked and how many qualified.\n\nconst cfg = $('Config').first().json\nconst checked = $input.all().map(i => i.json).filter(l => l && l.id)\nconst qualified = checked.filter(l => l.qualified).length\nconst failures = checked.filter(l => /^check_failed/.test(l.disqualify_reason || '')).map(l => ({ lead: l.id, message: l.disqualify_reason }))\n\nreturn [{\n  json: {\n    workflow_name: 'WF-2-Processor',\n    status: 'success',\n    leads_scraped: 0,\n    leads_skipped: checked.length - qualified,\n    leads_scored: qualified,\n    emails_sent: 0,\n    replies_detected: 0,\n    // Only real failures go in `errors` (the dashboard flags any run with errors).\n    errors: failures.length ? failures : null,\n    started_at: cfg.started_at,\n    finished_at: new Date().toISOString(),\n  },\n}]\n"
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000048",
+      "name": "Write run log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        360
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/workflow_logs",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000050",
+      "name": "Qualified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000049",
+              "leftValue": "={{ $json.qualified }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000052",
+      "name": "Need Hunter?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1890,
+        -60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000051",
+              "leftValue": "={{ !$json.site_email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000053",
+      "name": "Hunter: founder email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.hunter_url }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "domain",
+              "value": "={{ $json.company_domain }}"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bearHunter",
+          "name": "Hunter API key"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000054",
+      "name": "Pick founder email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// WF-2 \"Pick founder email\" (Code node, Run Once for Each Item).\n// Input: Hunter domain-search response for one qualified lead, or the lead itself when the free\n// website search already found an address (Hunter is skipped then).\n// Prefers Hunter founders / CEOs, then the address published on their site / HN profile.\n\nconst lead = $('Qualified?').item.json\nconst res = $json && ($json.data || $json.error) ? $json : {}\nconst emails = (res.data && res.data.emails) || []\n\nconst score = e => {\n  const pos = `${e.position || ''} ${e.seniority || ''}`.toLowerCase()\n  let s = Number(e.confidence) || 0\n  if (/founder|co-?founder|ceo|owner|chief executive/.test(pos)) s += 200\n  else if (/executive|cto|coo|cmo|head|director|vp/.test(pos)) s += 100\n  if (e.type === 'generic') s -= 150\n  return s\n}\nconst best = emails\n  .filter(e => e && e.value && (e.verification?.status ?? 'valid') !== 'invalid')\n  .sort((a, b) => score(b) - score(a))[0]\n\nconst hunterIsFounder = best && /founder|ceo|owner|chief executive/i.test(`${best.position || ''}`)\nconst useHunter = best && (hunterIsFounder || !lead.site_email)\nconst fullName = useHunter ? [best.first_name, best.last_name].filter(Boolean).join(' ') : ''\nreturn {\n  json: {\n    ...lead,\n    email: useHunter ? best.value : lead.site_email || null,\n    name: fullName || lead.name || null,\n    founder_role: useHunter ? best.position || null : null,\n    hunter_error: res.error ? String(res.error.message || res.error).slice(0, 200) : null,\n  },\n}\n"
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000055",
+      "name": "Groq: score lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2440,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.groq_url }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 2500
+            }
+          }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.groq_model, temperature: 0.2, max_completion_tokens: 2048, ...(String($('Config').first().json.groq_model).startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}), messages: [ { role: 'system', content: \"You qualify leads for Bear Studios, a studio that makes brand launch videos, promo videos and SaaS explainer videos for startups. Score 0-100 how likely this company needs a video now AND would reply to a short cold email. Weigh heavily: just launched or launching soon; no product/explainer video on their homepage; a real product company (SaaS, app, tool) rather than an open-source library, hobby project, agency or job post. Tiny teams are fine. Output ONLY JSON: {\\\"score\\\": <0-100>, \\\"reasoning\\\": \\\"<1-2 sentences>\\\", \\\"signals\\\": [\\\"<short signal>\\\"], \\\"hook\\\": \\\"<one specific, non-generic opening line for a cold email that references what they launched>\\\"}\" }, { role: 'user', content: ['Company: ' + ($json.company || '?'), 'Website: ' + $json.website, 'Source: ' + $json.source, 'Launched: ' + ($json.launched_at || 'unknown'), 'Team size: ' + ($json.team_size || 'unknown'), 'Homepage has a video: ' + ($json.has_video === null ? 'unknown' : $json.has_video), 'Signals: ' + ($json.signals || []).join(', '), 'Founder: ' + ($json.name || '?') + ($json.founder_role ? ' (' + $json.founder_role + ')' : ''), 'About: ' + String($json.post_content || '').slice(0, 1500)].join('\\n') } ] }) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bearGroq",
+          "name": "Groq API key"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000056",
+      "name": "Build lead row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// WF-2 \"Build lead row\" (Code node, Run Once for Each Item).\n// Input: Groq chat-completion response for one qualified lead (with or without an email).\n// Output: exactly the columns of public.leads (extra keys would make the insert fail).\n\nconst lead = $('Pick founder email').item.json\nconst cfg = $('Settings').first().json\nconst MIN_SCORE = Number(cfg.min_score) || 60\n\n// The model is asked for JSON only; take the first {...} block in case it adds any text around it.\nconst parseJson = text => {\n  const raw = String(text || '').trim()\n  const block = raw.match(/\\{[\\s\\S]*\\}/)\n  return JSON.parse(block ? block[0] : raw)\n}\n// n8n reports API errors as '400 - {\"error\":{\"message\":\"...\"}}'; keep the readable part.\nconst errorText = err => {\n  const text = String((err && err.message) || err || 'unknown error')\n  return (text.match(/\"message\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"/) || [])[1] || text\n}\n\nlet scoring = {}\ntry {\n  scoring = parseJson($json.choices[0].message.content)\n} catch {\n  scoring = { score: null, reasoning: $json.error ? `Groq error: ${errorText($json.error).slice(0, 200)}` : 'Could not parse AI score', signals: [], hook: null }\n}\nconst aiScore = Number.isFinite(Number(scoring.score)) ? Math.max(0, Math.min(100, Math.round(Number(scoring.score)))) : 0\n\nreturn {\n  json: {\n    raw_lead_id: lead.id,\n    name: lead.name,\n    email: lead.email,\n    company: lead.company,\n    company_domain: lead.company_domain,\n    website: lead.website,\n    source: lead.source,\n    source_id: lead.source_id,\n    profile_url: lead.profile_url,\n    bio: lead.bio,\n    post_content: lead.post_content,\n    x_handle: lead.x_handle,\n    linkedin_url: lead.linkedin_url,\n    launched_at: lead.launched_at,\n    team_size: lead.team_size,\n    domain_created_at: lead.domain_created_at,\n    has_video: lead.has_video,\n    signals: lead.signals || [],\n    founder_role: lead.founder_role,\n    ai_score: aiScore,\n    ai_reasoning: [scoring.reasoning, scoring.hook ? `Hook: ${scoring.hook}` : null].filter(Boolean).join('\\n') || null,\n    ai_signals: Array.isArray(scoring.signals) ? scoring.signals.map(String).slice(0, 8) : [],\n    status: 'scored',\n    // WF-3 only drafts emails for eligible leads; low scores and leads without an email stay visible but are not emailed.\n    outreach_eligible: aiScore >= MIN_SCORE && !!lead.email,\n  },\n}\n"
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000057",
+      "name": "Save lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/leads?on_conflict=raw_lead_id",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000058",
+      "name": "Mark processed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3100,
+        0
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/raw_leads?id=eq.{{ $('Build lead row').item.json.raw_lead_id }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'processed', processed_at: new Date().toISOString(), disqualify_reason: null, website: $('Build lead row').item.json.website, company_domain: $('Build lead row').item.json.company_domain, x_handle: $('Build lead row').item.json.x_handle, linkedin_url: $('Build lead row').item.json.linkedin_url }) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000059",
+      "name": "Save disqualified",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2660,
+        260
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/raw_leads?id=eq.{{ $json.id }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'disqualified', processed_at: new Date().toISOString(), disqualify_reason: $json.disqualify_reason, website: $json.website, company_domain: $json.company_domain, x_handle: $json.x_handle, linkedin_url: $json.linkedin_url }) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000060",
+      "name": "Load dashboard settings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/settings?key=eq.outreach&select=value",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000061",
+      "name": "Settings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"min_score\":\"min_score\",\"paused\":\"paused\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000063",
+      "name": "Paused?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "1f0c0d00-0000-4000-8000-000000000062",
+              "leftValue": "={{ $json.paused === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000064",
+      "name": "Paused: skip this run",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -60
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Every hour": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dashboard: Score & enrich": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Load dashboard settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch raw leads": {
+      "main": [
+        [
+          {
+            "node": "Free checks & qualify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Free checks & qualify": {
+      "main": [
+        [
+          {
+            "node": "Qualified?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run summary": {
+      "main": [
+        [
+          {
+            "node": "Write run log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualified?": {
+      "main": [
+        [
+          {
+            "node": "Need Hunter?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save disqualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need Hunter?": {
+      "main": [
+        [
+          {
+            "node": "Hunter: founder email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pick founder email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hunter: founder email": {
+      "main": [
+        [
+          {
+            "node": "Pick founder email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick founder email": {
+      "main": [
+        [
+          {
+            "node": "Groq: score lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq: score lead": {
+      "main": [
+        [
+          {
+            "node": "Build lead row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build lead row": {
+      "main": [
+        [
+          {
+            "node": "Save lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save lead": {
+      "main": [
+        [
+          {
+            "node": "Mark processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load dashboard settings": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Paused?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Paused?": {
+      "main": [
+        [
+          {
+            "node": "Paused: skip this run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch raw leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
