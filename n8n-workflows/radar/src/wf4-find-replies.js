@@ -9,13 +9,17 @@ const threadToLead = new Map()
 for (const h of $('Sent threads').all().map(i => i.json)) if (h && h.thread_id && h.lead_id) threadToLead.set(h.thread_id, h.lead_id)
 const contacted = $('Contacted leads').all().map(i => i.json).filter(l => l && l.id && l.email)
 
-const AUTO = /(automatic reply|auto[- ]?reply|out of (the )?office|ooo\b|on vacation|away from the office|autoresponder)/i
+// Also catches "we've received your message, we'll get back to you within 24 hours" acknowledgements, so a
+// canned receipt doesn't count as a reply and stop the follow-ups. Plain "thanks for reaching out" is left
+// alone: real replies often open with it.
+const AUTO = /(automatic reply|auto[- ]?reply|automated (reply|response|message)|out of (the )?office|ooo\b|on vacation|away from the office|autoresponder|(we'?ve|we have|has been) received your (e-?mail|message|inquiry|enquiry|request)|this is a quick note to let you know|(get|be) back to you within \d)/i
 const BOUNCE_FROM = /(mailer-daemon|postmaster|mail delivery (subsystem|system))/i
 
 const found = new Map()
 for (const m of messages) {
   const from = String(m.From || m.from || '')
-  const text = `${m.Subject || m.subject || ''} ${m.snippet || ''}`
+  // Gmail snippets HTML-escape apostrophes (we&#39;ve); curly quotes count too.
+  const text = `${m.Subject || m.subject || ''} ${m.snippet || ''}`.replace(/&#39;|&#x27;|\u2019/g, "'")
   if (BOUNCE_FROM.test(from)) {
     const lead = (threadToLead.has(m.threadId) && contacted.find(l => l.id === threadToLead.get(m.threadId))) ||
       contacted.find(l => text.toLowerCase().includes(l.email.toLowerCase()))
