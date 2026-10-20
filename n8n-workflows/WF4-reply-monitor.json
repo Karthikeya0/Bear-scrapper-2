@@ -2,7 +2,7 @@
   "name": "WF-4: Reply Monitor",
   "nodes": [
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000151",
+      "id": "b3a5e7c1-0000-4000-8000-000000000158",
       "name": "Every 30 minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000153",
+      "id": "b3a5e7c1-0000-4000-8000-000000000160",
       "name": "Dashboard: Check replies",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -37,7 +37,7 @@
         "responseMode": "onReceived",
         "options": {}
       },
-      "webhookId": "7e1f0b2a-0000-4000-8000-000000000152",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000159",
       "credentials": {
         "httpHeaderAuth": {
           "id": "bearDashboardSecret",
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000157",
+      "id": "b3a5e7c1-0000-4000-8000-000000000164",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -59,19 +59,19 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c0f19a00-0000-4000-8000-000000000154",
+              "id": "c0f19a00-0000-4000-8000-000000000161",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT-REF.supabase.co",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000155",
+              "id": "c0f19a00-0000-4000-8000-000000000162",
               "name": "lookback_days",
               "value": 3,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000156",
+              "id": "c0f19a00-0000-4000-8000-000000000163",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -83,7 +83,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000158",
+      "id": "b3a5e7c1-0000-4000-8000-000000000165",
       "name": "Gmail: recent inbox",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -113,7 +113,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000159",
+      "id": "b3a5e7c1-0000-4000-8000-000000000166",
       "name": "Sent threads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -145,7 +145,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000160",
+      "id": "b3a5e7c1-0000-4000-8000-000000000167",
       "name": "Contacted leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -177,7 +177,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000161",
+      "id": "b3a5e7c1-0000-4000-8000-000000000168",
       "name": "Find replies & bounces",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -192,7 +192,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000163",
+      "id": "b3a5e7c1-0000-4000-8000-000000000170",
       "name": "Anything found?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -209,7 +209,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000162",
+              "id": "1f0c0d00-0000-4000-8000-000000000169",
               "leftValue": "={{ !!$json.lead_id }}",
               "rightValue": "",
               "operator": {
@@ -225,7 +225,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000164",
+      "id": "b3a5e7c1-0000-4000-8000-000000000171",
       "name": "Update lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -268,7 +268,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000165",
+      "id": "b3a5e7c1-0000-4000-8000-000000000172",
       "name": "Cancel follow-ups",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -311,7 +311,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000166",
+      "id": "b3a5e7c1-0000-4000-8000-000000000173",
       "name": "Run summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -325,7 +325,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000167",
+      "id": "b3a5e7c1-0000-4000-8000-000000000174",
       "name": "Write run log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -368,7 +368,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000169",
+      "id": "b3a5e7c1-0000-4000-8000-000000000176",
       "name": "Commands on?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -385,7 +385,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000168",
+              "id": "1f0c0d00-0000-4000-8000-000000000175",
               "leftValue": "={{ !!$('Settings').first().json.owner_email }}",
               "rightValue": "",
               "operator": {
@@ -401,7 +401,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000170",
+      "id": "b3a5e7c1-0000-4000-8000-000000000177",
       "name": "Gmail: owner replies",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -431,7 +431,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000171",
+      "id": "b3a5e7c1-0000-4000-8000-000000000178",
       "name": "Recent digests",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -463,7 +463,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000172",
+      "id": "b3a5e7c1-0000-4000-8000-000000000179",
       "name": "Handled commands",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -495,7 +495,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000173",
+      "id": "b3a5e7c1-0000-4000-8000-000000000180",
       "name": "Read owner commands",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -509,7 +509,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000175",
+      "id": "b3a5e7c1-0000-4000-8000-000000000182",
       "name": "Approve drafts?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -526,7 +526,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000174",
+              "id": "1f0c0d00-0000-4000-8000-000000000181",
               "leftValue": "={{ $('Read owner commands').first().json.approve_ids.length > 0 }}",
               "rightValue": "",
               "operator": {
@@ -542,7 +542,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000176",
+      "id": "b3a5e7c1-0000-4000-8000-000000000183",
       "name": "Schedule approved drafts",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -585,7 +585,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000178",
+      "id": "b3a5e7c1-0000-4000-8000-000000000185",
       "name": "Pause changed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -602,7 +602,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000177",
+              "id": "1f0c0d00-0000-4000-8000-000000000184",
               "leftValue": "={{ $('Read owner commands').first().json.pause !== null }}",
               "rightValue": "",
               "operator": {
@@ -618,7 +618,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000179",
+      "id": "b3a5e7c1-0000-4000-8000-000000000186",
       "name": "Save pause",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -661,7 +661,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000181",
+      "id": "b3a5e7c1-0000-4000-8000-000000000188",
       "name": "Commands found?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -678,7 +678,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000180",
+              "id": "1f0c0d00-0000-4000-8000-000000000187",
               "leftValue": "={{ $('Read owner commands').first().json.audit.length > 0 }}",
               "rightValue": "",
               "operator": {
@@ -694,7 +694,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000182",
+      "id": "b3a5e7c1-0000-4000-8000-000000000189",
       "name": "Audit: owner commands",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -737,7 +737,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000184",
+      "id": "b3a5e7c1-0000-4000-8000-000000000191",
       "name": "Confirm to owner?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -754,7 +754,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000183",
+              "id": "1f0c0d00-0000-4000-8000-000000000190",
               "leftValue": "={{ !!$('Read owner commands').first().json.confirm }}",
               "rightValue": "",
               "operator": {
@@ -770,7 +770,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000185",
+      "id": "b3a5e7c1-0000-4000-8000-000000000192",
       "name": "Gmail: confirm to owner",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -796,7 +796,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000186",
+      "id": "b3a5e7c1-0000-4000-8000-000000000193",
       "name": "Load dashboard settings",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -829,7 +829,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000187",
+      "id": "b3a5e7c1-0000-4000-8000-000000000194",
       "name": "Settings",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -839,7 +839,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"paused\":\"paused\",\"owner_email\":\"owner_email\",\"autopilot_mode\":\"autopilot_mode\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
+        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"paused\":\"paused\",\"owner_email\":\"owner_email\",\"autopilot_mode\":\"autopilot_mode\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  daily_min: num(0, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
       }
     }
   ],

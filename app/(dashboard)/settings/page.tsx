@@ -138,6 +138,7 @@ export default function SettingsPage() {
 
   async function save() {
     if (form.send_window_start >= form.send_window_end) return toast.error('The send window must start before it ends.')
+    if (form.daily_min > form.daily_max) return toast.error('The daily minimum can’t be higher than the daily limit.')
     for (const k of ['sign_off', 'signature_name', 'company_name', 'from_name'] as const) {
       if (!form[k].trim()) return toast.error('Fill in every signature field.')
     }
@@ -275,6 +276,13 @@ export default function SettingsPage() {
             <Row label="Daily limit" htmlFor="daily" hint="Keep it at 20–30 so Gmail trusts your account.">
               <input id="daily" type="number" inputMode="numeric" className="input set-num" min={1} max={200} value={form.daily_max}
                 onChange={e => patch({ daily_max: int(e.target.value, 1, 200, form.daily_max) })} />
+            </Row>
+            <Row label="Daily minimum" htmlFor="daily_min"
+              hint={form.autopilot_mode === 'auto'
+                ? 'If fewer have gone out today, drafts waiting for review are sent too, and leads scoring 40+ get drafted. 0 = off.'
+                : 'Only works in Autopilot mode.'}>
+              <input id="daily_min" type="number" inputMode="numeric" className="input set-num" min={0} max={200} value={form.daily_min}
+                onChange={e => patch({ daily_min: int(e.target.value, 0, 200, form.daily_min) })} />
             </Row>
             <Row label="Send window" htmlFor="win_start" hint="One scheduled email every 10 minutes inside these hours.">
               <div className="row" style={{ gap: 8 }}>

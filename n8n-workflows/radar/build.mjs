@@ -323,6 +323,10 @@ function buildWf3() {
       autopilot_mode: 'manual',
       auto_min_score: 85,
       daily_max: 20,
+      // Daily minimum (Autopilot only): on a short day, draft for leads down to fill_min_score to make up the gap.
+      daily_min: 0,
+      fill_min_score: 40,
+      timezone: 'Asia/Kolkata',
       paused: false,
       groq_url: 'https://api.groq.com/openai/v1/chat/completions',
       // llama-3.3-70b-versatile was retired by Groq on 2026-08-16; gpt-oss-120b is Groq's recommended replacement.
@@ -332,7 +336,8 @@ function buildWf3() {
     http('Fetch leads to draft', [460, 100], {
       url:
         `=${SB}/rest/v1/leads?select=*,outreach_queue(id)&outreach_queue=is.null&status=eq.scored&outreach_eligible=eq.true` +
-        "&email=not.is.null&ai_score=gte.{{ $('Settings').first().json.min_score }}&order=ai_score.desc&limit={{ $('Settings').first().json.batch_size }}",
+        "&email=not.is.null&ai_score=gte.{{ (s => s.autopilot_mode === 'auto' && Number(s.daily_min) > 0 ? Math.min(Number(s.min_score), Number(s.fill_min_score) || 40) : s.min_score)($('Settings').first().json) }}" +
+        '&order=ai_score.desc&limit=50',
       auth: { supabase: true },
     }, once),
     http('Fetch DM leads', [680, 100], {
@@ -349,6 +354,12 @@ function buildWf3() {
     }, once),
     http('Waiting drafts', [1010, 240], {
       url: `=${SB}/rest/v1/outreach_queue?select=id&channel=eq.email&status=in.(pending_review,scheduled)&limit=1000`,
+      auth: { supabase: true },
+    }, once),
+    http('Sent today', [1010, 400], {
+      url:
+        `=${SB}/rest/v1/outreach_queue?select=id&status=eq.sent&channel=eq.email&limit=1000` +
+        "&sent_at=gte.{{ encodeURIComponent($now.setZone($('Settings').first().json.timezone || 'Asia/Kolkata').startOf('day').toUTC().toISO()) }}",
       auth: { supabase: true },
     }, once),
     code('Plan drafts', [1120, 100], 'wf3-plan.js'),
@@ -406,7 +417,8 @@ function buildWf3() {
   link(c, 'Fetch leads to draft', 'Fetch DM leads')
   link(c, 'Fetch DM leads', 'Fetch follow-ups')
   link(c, 'Fetch follow-ups', 'Waiting drafts')
-  link(c, 'Waiting drafts', 'Plan drafts')
+  link(c, 'Waiting drafts', 'Sent today')
+  link(c, 'Sent today', 'Plan drafts')
   link(c, 'Plan drafts', 'Anything to draft?')
   link(c, 'Anything to draft?', 'One at a time', 0)
   link(c, 'Anything to draft?', 'Run summary', 1)
@@ -447,6 +459,10 @@ function buildWf3b() {
       send_window_end: 18,
       send_on_weekends: false,
       timezone: 'Asia/Kolkata',
+      // Daily minimum (Autopilot only): when nothing is scheduled and fewer than this went out today,
+      // also send drafts still waiting for review.
+      autopilot_mode: 'manual',
+      daily_min: 0,
       started_at: '={{ $now.toISO() }}',
     }),
     ifTrue('From dashboard?', [440, 100], "={{ $('Dashboard: Approve & send').isExecuted }}"),
@@ -460,11 +476,16 @@ function buildWf3b() {
       url: `=${SB}/rest/v1/outreach_queue?select=id&status=eq.scheduled&channel=eq.email&order=approved_at.asc.nullslast,created_at.asc&limit=1`,
       auth: { supabase: true },
     }, once),
+    http('Review drafts', [990, 380], {
+      url: `=${SB}/rest/v1/outreach_queue?select=id,leads(ai_score,email,status)&status=eq.pending_review&channel=eq.email&limit=200`,
+      auth: { supabase: true },
+    }, once),
     code('Can send now?', [1100, 240], 'wf3b-can-send.js'),
-    // Moves it scheduled -> approved; only one run can claim a row, so nothing is sent twice.
+    // Moves it scheduled (or, for the daily minimum, pending_review) -> approved; only one run can claim a row,
+    // so nothing is sent twice.
     http('Claim scheduled', [1320, 240], {
       method: 'PATCH',
-      url: `=${SB}/rest/v1/outreach_queue?id=eq.{{ $json.id }}&status=eq.scheduled`,
+      url: `=${SB}/rest/v1/outreach_queue?id=eq.{{ $json.id }}&status=eq.{{ $json.from_status }}`,
       auth: { supabase: true },
       headers: [['Prefer', 'return=representation']],
       body: "={{ JSON.stringify({ status: 'approved', approved_at: new Date().toISOString() }) }}",
@@ -552,7 +573,7 @@ function buildWf3b() {
       auth: { supabase: true },
       responseFormat: 'text',
       headers: [['Prefer', 'return=minimal']],
-      body: `={{ JSON.stringify({ actor: 'n8n:WF-3b', action: 'sent', lead_id: ${Q}.lead_id, outreach_id: ${Q}.id, details: { to: ${Q}.leads.email, subject: ${Q}.subject, step: ${Q}.sequence_step || 1, trigger: $('Dashboard: Approve & send').isExecuted ? 'dashboard' : 'schedule' } }) }}`,
+      body: `={{ JSON.stringify({ actor: 'n8n:WF-3b', action: 'sent', lead_id: ${Q}.lead_id, outreach_id: ${Q}.id, details: { to: ${Q}.leads.email, subject: ${Q}.subject, step: ${Q}.sequence_step || 1, trigger: $('Dashboard: Approve & send').isExecuted ? 'dashboard' : $('Can send now?').first().json.from_status === 'pending_review' ? 'daily_minimum' : 'schedule' } }) }}`,
     }, CONTINUE),
     http('Return to review', [3740, 100], {
       method: 'PATCH',
@@ -583,7 +604,8 @@ function buildWf3b() {
   link(c, 'From dashboard?', 'Target', 0)
   link(c, 'From dashboard?', 'Sent today', 1)
   link(c, 'Sent today', 'Next scheduled')
-  link(c, 'Next scheduled', 'Can send now?')
+  link(c, 'Next scheduled', 'Review drafts')
+  link(c, 'Review drafts', 'Can send now?')
   link(c, 'Can send now?', 'Claim scheduled')
   link(c, 'Claim scheduled', 'Target')
   link(c, 'Target', 'Fetch approved email')
@@ -870,10 +892,11 @@ const SETTINGS_MAP = {
     min_score: 'min_score', drafts_per_run: 'batch_size', follow_up_days: 'follow_up_days', draft_dms: 'draft_dms',
     sign_off: 'sign_off', signature_name: 'sender_name', company_name: 'company_name', website: 'website',
     paused: 'paused', autopilot_mode: 'autopilot_mode', auto_min_score: 'auto_min_score', daily_max: 'daily_max',
+    daily_min: 'daily_min', timezone: 'timezone',
   },
   wf3b: {
     from_name: 'sender_name', daily_max: 'daily_max', send_window_start: 'send_window_start', send_window_end: 'send_window_end',
-    send_on_weekends: 'send_on_weekends', timezone: 'timezone', paused: 'paused',
+    send_on_weekends: 'send_on_weekends', timezone: 'timezone', paused: 'paused', autopilot_mode: 'autopilot_mode', daily_min: 'daily_min',
   },
   wf4: { paused: 'paused', owner_email: 'owner_email', autopilot_mode: 'autopilot_mode' },
   wf6: {

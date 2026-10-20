@@ -6,7 +6,7 @@
 // Output: one item per draft with the Groq prompt ready (system + user) and the row fields to save.
 
 const cfg = $('Settings').first().json
-const MAX = Number(cfg.batch_size) || 10
+const MIN_SCORE = Number(cfg.min_score) || 0
 const FOLLOW_UP_DAYS = String(cfg.follow_up_days || '4,7').split(',').map(n => Number(n.trim())).filter(n => n > 0)
 const MAX_STEP = 1 + FOLLOW_UP_DAYS.length
 const DAY = 86400000
@@ -15,7 +15,14 @@ const PENDING = new Set(['pending_review', 'scheduled', 'approved'])
 // Clicking "Draft new emails" in the dashboard is not capped.
 const fromDashboard = $('Dashboard: Draft outreach').isExecuted
 const waiting = $('Waiting drafts').all().filter(i => i.json && i.json.id).length
-let firstEmailRoom = fromDashboard ? Infinity : Math.max(0, (Number(cfg.daily_max) || 20) - waiting)
+// Daily minimum (Autopilot only): if today's sent + waiting emails fall short of daily_min, draft enough to close
+// the gap, also for leads scoring below min_score (down to fill_min_score; "Fetch leads to draft" includes them).
+// WF-3b then sends drafts still waiting for review until the minimum is reached.
+const sentToday = $('Sent today').all().filter(i => i.json && i.json.id).length
+const FILL = cfg.autopilot_mode === 'auto' && cfg.paused !== true && Number(cfg.daily_min) > 0
+let shortfall = FILL ? Math.max(0, Number(cfg.daily_min) - sentToday - waiting) : 0
+let firstEmailRoom = fromDashboard ? Infinity : Math.max(0, (Number(cfg.daily_max) || 20) - waiting, shortfall)
+const MAX = Math.max(Number(cfg.batch_size) || 10, Math.min(shortfall, 30))
 
 const rows = name => $(name).all().map(i => i.json).filter(l => l && l.id)
 const hookOf = l => String(l.ai_reasoning || '').match(/Hook:\s*(.+)/i)?.[1]?.trim() || null
@@ -106,6 +113,7 @@ for (const l of rows('Fetch follow-ups')) {
   const waitDays = FOLLOW_UP_DAYS[step - 2]
   if ((now - Date.parse(last.sent_at)) / DAY < waitDays) continue
   const first = sent.find(q => (q.sequence_step || 1) === 1) || last
+  const before = plan.length
   add({
     kind: 'followup', lead_id: l.id, email: l.email, channel: 'email', sequence_step: step, ai_score: l.ai_score,
     system: SYS_FOLLOW,
@@ -117,15 +125,18 @@ for (const l of rows('Fetch follow-ups')) {
     ].join('\n'),
     fallback_subject: /^re:/i.test(first.subject || '') ? first.subject : `Re: ${first.subject}`,
   })
+  if (plan.length > before) shortfall--
 }
 
 // 2. First emails
 for (const l of rows('Fetch leads to draft')) {
   if (!l.email || (Array.isArray(l.outreach_queue) && l.outreach_queue.length)) continue
   if (firstEmailRoom <= 0) break
+  // Leads under min_score are only here to make up a daily-minimum shortfall.
+  if ((Number(l.ai_score) || 0) < MIN_SCORE && shortfall <= 0) continue
   const before = plan.length
   add({ kind: 'first', lead_id: l.id, email: l.email, channel: 'email', sequence_step: 1, ai_score: l.ai_score, system: SYS_FIRST, user: facts(l).join('\n') })
-  if (plan.length > before) firstEmailRoom--
+  if (plan.length > before) { firstEmailRoom--; shortfall-- }
 }
 
 // 3. DMs for leads without an email

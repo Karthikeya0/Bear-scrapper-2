@@ -17,6 +17,8 @@ export type OutreachSettings = {
   follow_up_days: number[]
   draft_dms: boolean
   daily_max: number
+  /** Autopilot only: on a short day, WF-3b also sends drafts still waiting for review, until this many went out. 0 = off. */
+  daily_min: number
   send_window_start: number
   send_window_end: number
   send_on_weekends: boolean
@@ -39,6 +41,7 @@ export const DEFAULT_SETTINGS: OutreachSettings = {
   follow_up_days: [4, 7],
   draft_dms: true,
   daily_max: 20,
+  daily_min: 0,
   send_window_start: 9,
   send_window_end: 18,
   send_on_weekends: false,

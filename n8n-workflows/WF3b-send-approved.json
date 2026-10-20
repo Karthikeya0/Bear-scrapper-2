@@ -2,7 +2,7 @@
   "name": "WF-3b: Send Approved",
   "nodes": [
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000110",
+      "id": "b3a5e7c1-0000-4000-8000-000000000114",
       "name": "Dashboard: Approve & send",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -17,7 +17,7 @@
         "responseMode": "onReceived",
         "options": {}
       },
-      "webhookId": "7e1f0b2a-0000-4000-8000-000000000109",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000113",
       "credentials": {
         "httpHeaderAuth": {
           "id": "bearDashboardSecret",
@@ -26,7 +26,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000111",
+      "id": "b3a5e7c1-0000-4000-8000-000000000115",
       "name": "Every 10 minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000120",
+      "id": "b3a5e7c1-0000-4000-8000-000000000126",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -59,49 +59,61 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c0f19a00-0000-4000-8000-000000000112",
+              "id": "c0f19a00-0000-4000-8000-000000000116",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT-REF.supabase.co",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000113",
+              "id": "c0f19a00-0000-4000-8000-000000000117",
               "name": "sender_name",
               "value": "Karthikeya | Bear Studios",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000114",
+              "id": "c0f19a00-0000-4000-8000-000000000118",
               "name": "daily_max",
               "value": 20,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000115",
+              "id": "c0f19a00-0000-4000-8000-000000000119",
               "name": "send_window_start",
               "value": 9,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000116",
+              "id": "c0f19a00-0000-4000-8000-000000000120",
               "name": "send_window_end",
               "value": 18,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000117",
+              "id": "c0f19a00-0000-4000-8000-000000000121",
               "name": "send_on_weekends",
               "value": false,
               "type": "boolean"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000118",
+              "id": "c0f19a00-0000-4000-8000-000000000122",
               "name": "timezone",
               "value": "Asia/Kolkata",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000119",
+              "id": "c0f19a00-0000-4000-8000-000000000123",
+              "name": "autopilot_mode",
+              "value": "manual",
+              "type": "string"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000124",
+              "name": "daily_min",
+              "value": 0,
+              "type": "number"
+            },
+            {
+              "id": "c0f19a00-0000-4000-8000-000000000125",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -113,7 +125,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000122",
+      "id": "b3a5e7c1-0000-4000-8000-000000000128",
       "name": "From dashboard?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -130,7 +142,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000121",
+              "id": "1f0c0d00-0000-4000-8000-000000000127",
               "leftValue": "={{ $('Dashboard: Approve & send').isExecuted }}",
               "rightValue": "",
               "operator": {
@@ -146,7 +158,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000123",
+      "id": "b3a5e7c1-0000-4000-8000-000000000129",
       "name": "Sent today",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -178,7 +190,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000124",
+      "id": "b3a5e7c1-0000-4000-8000-000000000130",
       "name": "Next scheduled",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -210,7 +222,39 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000125",
+      "id": "b3a5e7c1-0000-4000-8000-000000000131",
+      "name": "Review drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1430,
+        380
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?select=id,leads(ai_score,email,status)&status=eq.pending_review&channel=eq.email&limit=200",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "bearSupabase",
+          "name": "Supabase account"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b3a5e7c1-0000-4000-8000-000000000132",
       "name": "Can send now?",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -220,11 +264,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// WF-3b \"Can send now?\" (Code node, Run Once for All Items) — scheduled path only.\n// Sends at most one bulk-approved (\"scheduled\") email per run, only inside the send window\n// (Config timezone) and while today's sent count is under daily_max. Emails approved one by\n// one in the dashboard skip this and go out immediately.\n\nconst cfg = $('Settings').first().json\n// STOP ALL (dashboard banner, Settings, or an emailed \"STOP ALL\"): nothing scheduled goes out until resumed.\nif (cfg.paused === true) return []\nconst tz = cfg.timezone || 'UTC'\nconst parts = Object.fromEntries(\n  new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23', weekday: 'short' })\n    .formatToParts(new Date())\n    .map(p => [p.type, p.value]),\n)\nconst hour = Number(parts.hour)\nconst weekend = parts.weekday === 'Sat' || parts.weekday === 'Sun'\nif (weekend && !(cfg.send_on_weekends === true || String(cfg.send_on_weekends) === 'true')) return []\nif (hour < Number(cfg.send_window_start ?? 9) || hour >= Number(cfg.send_window_end ?? 18)) return []\n\nconst sentToday = $('Sent today').all().filter(i => i.json && i.json.id).length\nif (sentToday >= (Number(cfg.daily_max) || 20)) return []\n\nconst next = $('Next scheduled').all().map(i => i.json).find(r => r && r.id)\nreturn next ? [{ json: { id: next.id } }] : []\n"
+        "jsCode": "// WF-3b \"Can send now?\" (Code node, Run Once for All Items) — scheduled path only.\n// Sends at most one email per run, only inside the send window (Config timezone) and while today's sent count\n// is under daily_max. Normally that is the oldest bulk-approved (\"scheduled\") email. Daily minimum (Autopilot\n// only): when nothing is scheduled and fewer than daily_min went out today, it sends a draft still waiting for\n// review instead. Emails approved one by one in the dashboard skip this and go out immediately.\n\nconst cfg = $('Settings').first().json\n// STOP ALL (dashboard banner, Settings, or an emailed \"STOP ALL\"): nothing scheduled goes out until resumed.\nif (cfg.paused === true) return []\nconst tz = cfg.timezone || 'UTC'\nconst parts = Object.fromEntries(\n  new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23', weekday: 'short' })\n    .formatToParts(new Date())\n    .map(p => [p.type, p.value]),\n)\nconst hour = Number(parts.hour)\nconst weekend = parts.weekday === 'Sat' || parts.weekday === 'Sun'\nif (weekend && !(cfg.send_on_weekends === true || String(cfg.send_on_weekends) === 'true')) return []\nif (hour < Number(cfg.send_window_start ?? 9) || hour >= Number(cfg.send_window_end ?? 18)) return []\n\nconst sentToday = $('Sent today').all().filter(i => i.json && i.json.id).length\nif (sentToday >= (Number(cfg.daily_max) || 20)) return []\n\nconst next = $('Next scheduled').all().map(i => i.json).find(r => r && r.id)\nif (next) return [{ json: { id: next.id, from_status: 'scheduled' } }]\n\nif (cfg.autopilot_mode !== 'auto' || sentToday >= (Number(cfg.daily_min) || 0)) return []\nconst BLOCKED = ['unsubscribed', 'bounced', 'dead', 'replied']\nconst review = $('Review drafts').all().map(i => i.json)\n  .filter(r => r && r.id && r.leads && r.leads.email && !BLOCKED.includes(r.leads.status))\n  .sort((a, b) => (Number(b.leads.ai_score) || 0) - (Number(a.leads.ai_score) || 0))\nif (!review.length) return []\n// Best score first, but rotate every 10 minutes so one draft Gmail keeps rejecting can't block the rest.\nconst pick = review[Math.floor(Date.now() / 600000) % Math.min(review.length, 3)]\nreturn [{ json: { id: pick.id, from_status: 'pending_review' } }]\n"
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000126",
+      "id": "b3a5e7c1-0000-4000-8000-000000000133",
       "name": "Claim scheduled",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -234,7 +278,7 @@
       ],
       "parameters": {
         "method": "PATCH",
-        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?id=eq.{{ $json.id }}&status=eq.scheduled",
+        "url": "={{ $('Config').first().json.supabase_url }}/rest/v1/outreach_queue?id=eq.{{ $json.id }}&status=eq.{{ $json.from_status }}",
         "options": {
           "timeout": 30000,
           "response": {
@@ -267,7 +311,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000127",
+      "id": "b3a5e7c1-0000-4000-8000-000000000134",
       "name": "Target",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -281,7 +325,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000128",
+      "id": "b3a5e7c1-0000-4000-8000-000000000135",
       "name": "Fetch approved email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -312,7 +356,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000130",
+      "id": "b3a5e7c1-0000-4000-8000-000000000137",
       "name": "Ready to send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -329,7 +373,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000129",
+              "id": "1f0c0d00-0000-4000-8000-000000000136",
               "leftValue": "={{ !!$json.id && $json.channel !== 'dm' && !!($json.leads && $json.leads.email) && !['unsubscribed', 'bounced', 'dead', 'replied'].includes($json.leads.status) }}",
               "rightValue": "",
               "operator": {
@@ -345,7 +389,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000131",
+      "id": "b3a5e7c1-0000-4000-8000-000000000138",
       "name": "Previous message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -377,7 +421,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000133",
+      "id": "b3a5e7c1-0000-4000-8000-000000000140",
       "name": "Reply in thread?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -394,7 +438,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000132",
+              "id": "1f0c0d00-0000-4000-8000-000000000139",
               "leftValue": "={{ ($('Fetch approved email').first().json.sequence_step || 1) > 1 && !!$json.message_id && !!$json.thread_id }}",
               "rightValue": "",
               "operator": {
@@ -410,7 +454,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000134",
+      "id": "b3a5e7c1-0000-4000-8000-000000000141",
       "name": "Gmail: reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -440,7 +484,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000135",
+      "id": "b3a5e7c1-0000-4000-8000-000000000142",
       "name": "One-pager",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -455,7 +499,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000137",
+      "id": "b3a5e7c1-0000-4000-8000-000000000144",
       "name": "Have one-pager?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -472,7 +516,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000136",
+              "id": "1f0c0d00-0000-4000-8000-000000000143",
               "leftValue": "={{ !!($binary && $binary.onepager) }}",
               "rightValue": "",
               "operator": {
@@ -488,7 +532,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000138",
+      "id": "b3a5e7c1-0000-4000-8000-000000000145",
       "name": "Gmail: send with one-pager",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -522,7 +566,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000139",
+      "id": "b3a5e7c1-0000-4000-8000-000000000146",
       "name": "Send result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -536,7 +580,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000141",
+      "id": "b3a5e7c1-0000-4000-8000-000000000148",
       "name": "Sent?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -553,7 +597,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000140",
+              "id": "1f0c0d00-0000-4000-8000-000000000147",
               "leftValue": "={{ $json.ok }}",
               "rightValue": "",
               "operator": {
@@ -569,7 +613,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000142",
+      "id": "b3a5e7c1-0000-4000-8000-000000000149",
       "name": "Mark sent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -612,7 +656,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000143",
+      "id": "b3a5e7c1-0000-4000-8000-000000000150",
       "name": "Save history",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -656,7 +700,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000144",
+      "id": "b3a5e7c1-0000-4000-8000-000000000151",
       "name": "Mark lead contacted",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -699,7 +743,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000145",
+      "id": "b3a5e7c1-0000-4000-8000-000000000152",
       "name": "Log sent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -742,7 +786,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000146",
+      "id": "b3a5e7c1-0000-4000-8000-000000000153",
       "name": "Audit: sent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -775,7 +819,7 @@
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ actor: 'n8n:WF-3b', action: 'sent', lead_id: $('Fetch approved email').first().json.lead_id, outreach_id: $('Fetch approved email').first().json.id, details: { to: $('Fetch approved email').first().json.leads.email, subject: $('Fetch approved email').first().json.subject, step: $('Fetch approved email').first().json.sequence_step || 1, trigger: $('Dashboard: Approve & send').isExecuted ? 'dashboard' : 'schedule' } }) }}"
+        "jsonBody": "={{ JSON.stringify({ actor: 'n8n:WF-3b', action: 'sent', lead_id: $('Fetch approved email').first().json.lead_id, outreach_id: $('Fetch approved email').first().json.id, details: { to: $('Fetch approved email').first().json.leads.email, subject: $('Fetch approved email').first().json.subject, step: $('Fetch approved email').first().json.sequence_step || 1, trigger: $('Dashboard: Approve & send').isExecuted ? 'dashboard' : $('Can send now?').first().json.from_status === 'pending_review' ? 'daily_minimum' : 'schedule' } }) }}"
       },
       "credentials": {
         "supabaseApi": {
@@ -786,7 +830,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000147",
+      "id": "b3a5e7c1-0000-4000-8000-000000000154",
       "name": "Return to review",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -829,7 +873,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000148",
+      "id": "b3a5e7c1-0000-4000-8000-000000000155",
       "name": "Log failure",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -872,7 +916,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000149",
+      "id": "b3a5e7c1-0000-4000-8000-000000000156",
       "name": "Load dashboard settings",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -905,7 +949,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000150",
+      "id": "b3a5e7c1-0000-4000-8000-000000000157",
       "name": "Settings",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -915,7 +959,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"from_name\":\"sender_name\",\"daily_max\":\"daily_max\",\"send_window_start\":\"send_window_start\",\"send_window_end\":\"send_window_end\",\"send_on_weekends\":\"send_on_weekends\",\"timezone\":\"timezone\",\"paused\":\"paused\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
+        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"from_name\":\"sender_name\",\"daily_max\":\"daily_max\",\"send_window_start\":\"send_window_start\",\"send_window_end\":\"send_window_end\",\"send_on_weekends\":\"send_on_weekends\",\"timezone\":\"timezone\",\"paused\":\"paused\",\"autopilot_mode\":\"autopilot_mode\",\"daily_min\":\"daily_min\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  daily_min: num(0, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
       }
     }
   ],
@@ -983,6 +1027,17 @@
       ]
     },
     "Next scheduled": {
+      "main": [
+        [
+          {
+            "node": "Review drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review drafts": {
       "main": [
         [
           {

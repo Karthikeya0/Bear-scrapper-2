@@ -16,6 +16,7 @@ const RULES = {
   min_score: num(0, 100),
   drafts_per_run: num(1, 50),
   daily_max: num(1, 500),
+  daily_min: num(0, 500),
   send_window_start: num(0, 23),
   send_window_end: num(1, 24),
   send_on_weekends: bool,

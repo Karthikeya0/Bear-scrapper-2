@@ -2,7 +2,7 @@
   "name": "WF-6: Daily Digest",
   "nodes": [
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000188",
+      "id": "b3a5e7c1-0000-4000-8000-000000000195",
       "name": "Every hour",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000190",
+      "id": "b3a5e7c1-0000-4000-8000-000000000197",
       "name": "Dashboard: Send digest",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -37,7 +37,7 @@
         "responseMode": "onReceived",
         "options": {}
       },
-      "webhookId": "7e1f0b2a-0000-4000-8000-000000000189",
+      "webhookId": "7e1f0b2a-0000-4000-8000-000000000196",
       "credentials": {
         "httpHeaderAuth": {
           "id": "bearDashboardSecret",
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000202",
+      "id": "b3a5e7c1-0000-4000-8000-000000000209",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -59,67 +59,67 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c0f19a00-0000-4000-8000-000000000191",
+              "id": "c0f19a00-0000-4000-8000-000000000198",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT-REF.supabase.co",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000192",
+              "id": "c0f19a00-0000-4000-8000-000000000199",
               "name": "dashboard_url",
               "value": "http://localhost:3000",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000193",
+              "id": "c0f19a00-0000-4000-8000-000000000200",
               "name": "autopilot_mode",
               "value": "manual",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000194",
+              "id": "c0f19a00-0000-4000-8000-000000000201",
               "name": "digest_hour",
               "value": 9,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000195",
+              "id": "c0f19a00-0000-4000-8000-000000000202",
               "name": "owner_email",
               "value": "",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000196",
+              "id": "c0f19a00-0000-4000-8000-000000000203",
               "name": "timezone",
               "value": "Asia/Kolkata",
               "type": "string"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000197",
+              "id": "c0f19a00-0000-4000-8000-000000000204",
               "name": "daily_max",
               "value": 20,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000198",
+              "id": "c0f19a00-0000-4000-8000-000000000205",
               "name": "send_window_start",
               "value": 9,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000199",
+              "id": "c0f19a00-0000-4000-8000-000000000206",
               "name": "send_window_end",
               "value": 18,
               "type": "number"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000200",
+              "id": "c0f19a00-0000-4000-8000-000000000207",
               "name": "paused",
               "value": false,
               "type": "boolean"
             },
             {
-              "id": "c0f19a00-0000-4000-8000-000000000201",
+              "id": "c0f19a00-0000-4000-8000-000000000208",
               "name": "started_at",
               "value": "={{ $now.toISO() }}",
               "type": "string"
@@ -131,7 +131,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000203",
+      "id": "b3a5e7c1-0000-4000-8000-000000000210",
       "name": "Digest due?",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -145,7 +145,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000205",
+      "id": "b3a5e7c1-0000-4000-8000-000000000212",
       "name": "Due?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -162,7 +162,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000204",
+              "id": "1f0c0d00-0000-4000-8000-000000000211",
               "leftValue": "={{ $json.due }}",
               "rightValue": "",
               "operator": {
@@ -178,7 +178,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000206",
+      "id": "b3a5e7c1-0000-4000-8000-000000000213",
       "name": "Drafts waiting",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -210,7 +210,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000207",
+      "id": "b3a5e7c1-0000-4000-8000-000000000214",
       "name": "Scheduled",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -242,7 +242,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000208",
+      "id": "b3a5e7c1-0000-4000-8000-000000000215",
       "name": "Sent last 24h",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -274,7 +274,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000209",
+      "id": "b3a5e7c1-0000-4000-8000-000000000216",
       "name": "Replies last 24h",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -306,7 +306,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000210",
+      "id": "b3a5e7c1-0000-4000-8000-000000000217",
       "name": "Bounced last 24h",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -339,7 +339,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000211",
+      "id": "b3a5e7c1-0000-4000-8000-000000000218",
       "name": "Failures last 24h",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -371,7 +371,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000212",
+      "id": "b3a5e7c1-0000-4000-8000-000000000219",
       "name": "Digest sent today?",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -403,7 +403,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000213",
+      "id": "b3a5e7c1-0000-4000-8000-000000000220",
       "name": "Build digest",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -417,7 +417,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000215",
+      "id": "b3a5e7c1-0000-4000-8000-000000000222",
       "name": "Send it?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -434,7 +434,7 @@
           },
           "conditions": [
             {
-              "id": "1f0c0d00-0000-4000-8000-000000000214",
+              "id": "1f0c0d00-0000-4000-8000-000000000221",
               "leftValue": "={{ $json.send }}",
               "rightValue": "",
               "operator": {
@@ -450,7 +450,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000216",
+      "id": "b3a5e7c1-0000-4000-8000-000000000223",
       "name": "Gmail: send digest",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -479,7 +479,7 @@
       "waitBetweenTries": 5000
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000217",
+      "id": "b3a5e7c1-0000-4000-8000-000000000224",
       "name": "Audit: digest sent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -522,7 +522,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000218",
+      "id": "b3a5e7c1-0000-4000-8000-000000000225",
       "name": "Write run log",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -565,7 +565,7 @@
       }
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000219",
+      "id": "b3a5e7c1-0000-4000-8000-000000000226",
       "name": "Load dashboard settings",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -598,7 +598,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "b3a5e7c1-0000-4000-8000-000000000220",
+      "id": "b3a5e7c1-0000-4000-8000-000000000227",
       "name": "Settings",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -608,7 +608,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"paused\":\"paused\",\"autopilot_mode\":\"autopilot_mode\",\"digest_hour\":\"digest_hour\",\"owner_email\":\"owner_email\",\"timezone\":\"timezone\",\"daily_max\":\"daily_max\",\"send_window_start\":\"send_window_start\",\"send_window_end\":\"send_window_end\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
+        "jsCode": "// \"Settings\" (Code node, Run Once for All Items).\n// Starts from this workflow's Config node, then applies what you saved on the dashboard's Settings page\n// (Supabase row settings.key = 'outreach'). Anything missing or invalid keeps the Config value.\nconst cfg = { ...$('Config').first().json }\nconst row = $input.first().json || {}\nconst saved = row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}\nconst MAP = {\"paused\":\"paused\",\"autopilot_mode\":\"autopilot_mode\",\"digest_hour\":\"digest_hour\",\"owner_email\":\"owner_email\",\"timezone\":\"timezone\",\"daily_max\":\"daily_max\",\"send_window_start\":\"send_window_start\",\"send_window_end\":\"send_window_end\"} // dashboard key -> Config key (filled in per workflow by build.mjs)\n\nconst num = (min, max) => v => {\n  const n = Number(v)\n  return v !== '' && Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined\n}\nconst bool = v => (typeof v === 'boolean' ? v : undefined)\nconst text = v => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined)\nconst RULES = {\n  min_score: num(0, 100),\n  drafts_per_run: num(1, 50),\n  daily_max: num(1, 500),\n  daily_min: num(0, 500),\n  send_window_start: num(0, 23),\n  send_window_end: num(1, 24),\n  send_on_weekends: bool,\n  draft_dms: bool,\n  // [] = no follow-ups ('0' is skipped by the planner); otherwise \"4,7\"\n  follow_up_days: v => {\n    const list = (Array.isArray(v) ? v : String(v).split(',')).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= 90)\n    return list.length ? list.join(',') : '0'\n  },\n  timezone: v => {\n    try {\n      new Intl.DateTimeFormat('en-US', { timeZone: String(v) })\n      return String(v)\n    } catch {\n      return undefined\n    }\n  },\n  sign_off: text,\n  signature_name: text,\n  company_name: text,\n  website: text,\n  from_name: text,\n  paused: bool,\n  autopilot_mode: v => (['manual', 'digest', 'auto'].includes(v) ? v : undefined),\n  auto_min_score: num(50, 100),\n  digest_hour: num(0, 23),\n  owner_email: v => (typeof v === 'string' && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v.trim()) ? v.trim().toLowerCase() : undefined),\n}\n\nconst applied = []\nfor (const [from, to] of Object.entries(MAP)) {\n  if (saved[from] === undefined || saved[from] === null || !RULES[from]) continue\n  const value = RULES[from](saved[from])\n  if (value === undefined) continue\n  cfg[to] = value\n  applied.push(from)\n}\nif (cfg.send_window_start !== undefined && Number(cfg.send_window_start) >= Number(cfg.send_window_end)) {\n  const base = $('Config').first().json\n  cfg.send_window_start = base.send_window_start\n  cfg.send_window_end = base.send_window_end\n}\ncfg.settings_applied = applied\nreturn [{ json: cfg }]\n"
       }
     }
   ],
