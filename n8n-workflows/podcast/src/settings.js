@@ -52,7 +52,7 @@ const PODCAST = [
   ['follow_up_days', 'follow_up_days', days],
   ['draft_dms', 'draft_dms', bool],
   ['autopilot', 'autopilot', v => (['manual', 'auto'].includes(v) ? v : undefined)],
-  ['sheet_url', 'sheet_url', v => (typeof v === 'string' ? v.trim() : undefined)],
+  ['sheet_url', 'sheet_url', v => (typeof v === 'string' && v.trim() ? v.trim() : undefined)], // empty = keep Config's link
   ['added_by', 'added_by', text],
 ]
 
