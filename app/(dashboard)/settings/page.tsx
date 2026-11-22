@@ -271,8 +271,8 @@ export default function SettingsPage() {
             </Row>
           </Section>
 
-          <Section title="Sending" desc="For emails you approve with Approve all. Approve & send on one email sends right away.">
-            <Row label="Daily limit" htmlFor="daily" hint="Keep it at 20–30 so Gmail trusts your account.">
+          <Section title="Sending" desc="Startup (SaaS) emails. Approve all sends them gradually; Approve & send sends one now. Both stop at the daily limit.">
+            <Row label="Daily limit (startups)" htmlFor="daily" hint="10 startups + 10 podcasts = 20 a day in total. The podcast limit is on the Podcasts page.">
               <input id="daily" type="number" inputMode="numeric" className="input set-num" min={1} max={200} value={form.daily_max}
                 onChange={e => patch({ daily_max: int(e.target.value, 1, 200, form.daily_max) })} />
             </Row>

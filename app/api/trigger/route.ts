@@ -4,7 +4,7 @@ import { callWebhook, WORKFLOW_WEBHOOK_MAP } from '@/lib/n8n'
 import { audit, loadSettings } from '@/lib/settings'
 
 // Allowed while paused: reading replies (and RESUME commands) and the digest only report, they never send to leads.
-const ALLOWED_WHILE_PAUSED = new Set(['WF-4-ReplyMonitor', 'WF-6-Digest'])
+const ALLOWED_WHILE_PAUSED = new Set(['WF-4-ReplyMonitor', 'WF-6-Digest', 'WF-P4-PodcastReplies', 'WF-P5-PodcastSheet'])
 
 export async function POST(request: NextRequest) {
   const auth = await requireRole(['owner'])

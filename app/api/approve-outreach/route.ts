@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { APPROVE_AND_SEND_PATH, callWebhook } from '@/lib/n8n'
 import { audit, loadSettings } from '@/lib/settings'
+import { startOfDayIso } from '@/lib/podcast'
 
 const MAX_SUBJECT = 300
 const MAX_BODY = 20000
@@ -35,6 +36,21 @@ export async function POST(request: NextRequest) {
   const { settings } = await loadSettings(supabase)
   if (settings.paused) {
     return NextResponse.json({ ok: false, error: 'Outreach is paused (STOP ALL). Resume it from the banner at the top or in Settings, then send.' }, { status: 423 })
+  }
+
+  // The startup daily limit (Settings → daily_max, 10 by default) also covers emails sent one by one from here,
+  // so startups + podcasts never go over 10 + 10 = 20 a day. WF-3b already applies it to scheduled emails.
+  const { count: sentToday } = await supabase
+    .from('outreach_queue')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'sent')
+    .eq('channel', 'email')
+    .gte('sent_at', startOfDayIso(settings.timezone))
+  if ((sentToday ?? 0) >= settings.daily_max) {
+    return NextResponse.json(
+      { ok: false, error: `Today's startup email limit is reached (${sentToday}/${settings.daily_max}). Use "Approve all" to schedule it for the next sending day.` },
+      { status: 429 },
+    )
   }
 
   const approved_at = new Date().toISOString()

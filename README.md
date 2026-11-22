@@ -70,6 +70,10 @@ update public.clients set portal_user_id = (select id from auth.users where emai
 where company = 'Acme';
 ```
 
+## Podcast outreach
+
+A second, separate pipeline for small podcasts (Bear Studios Podcast Lead Research SOP): YouTube search → SOP checks → drafts → Gmail (max 10 a day) → Google Sheet "Podcast Leads". Startups stay at 10 a day, so the total is 20. Setup: [`n8n-workflows/PODCAST-SETUP.md`](n8n-workflows/PODCAST-SETUP.md). Database: `supabase/migrations/007_podcasts.sql`.
+
 ## n8n setup
 
 See [`n8n-workflows/BEAR-RADAR-SETUP.md`](n8n-workflows/BEAR-RADAR-SETUP.md) for the step-by-step import guide (WF-1 and WF-2 v2).

@@ -116,3 +116,6 @@ export const IconChart = (p: IconProps) => (
 export const IconActivity = (p: IconProps) => (
   <svg {...base(p)}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
 )
+export const IconMic = (p: IconProps) => (
+  <svg {...base(p)}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><path d="M12 18v3" /></svg>
+)

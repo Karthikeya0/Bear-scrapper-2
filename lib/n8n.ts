@@ -2,6 +2,8 @@ import 'server-only'
 
 // Webhook paths registered in n8n. These must stay in sync with the n8n workflows — do not rename.
 export const APPROVE_AND_SEND_PATH = 'approve-and-send'
+/** WF-P3b: sends one approved podcast email (max 10 a day, enforced in the workflow too). */
+export const PODCAST_SEND_PATH = 'wfp3b-podcast-send'
 
 export const WORKFLOW_WEBHOOK_MAP: Record<string, string> = {
   'WF-1-Scraper': 'wf1-scraper',
@@ -10,6 +12,12 @@ export const WORKFLOW_WEBHOOK_MAP: Record<string, string> = {
   'WF-4-ReplyMonitor': 'wf4-reply-monitor',
   'WF-5-Feedback': 'wf5-feedback',
   'WF-6-Digest': 'wf6-digest',
+  // Podcast pipeline (separate workflows; see n8n-workflows/podcast)
+  'WF-P1-PodcastFind': 'wfp1-podcast-find',
+  'WF-P2-PodcastQualify': 'wfp2-podcast-qualify',
+  'WF-P3-PodcastDraft': 'wfp3-podcast-draft',
+  'WF-P4-PodcastReplies': 'wfp4-podcast-replies',
+  'WF-P5-PodcastSheet': 'wfp5-podcast-sheet',
 }
 
 export type N8nResult = { ok: boolean; status: number; error?: string; url?: string }
