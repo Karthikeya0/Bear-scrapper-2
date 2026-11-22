@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { APPROVE_AND_SEND_PATH, WORKFLOW_WEBHOOK_MAP, n8nConfig, pingN8n, probeWebhook } from '@/lib/n8n'
+import { APPROVE_AND_SEND_PATH, PODCAST_SEND_PATH, WORKFLOW_WEBHOOK_MAP, n8nConfig, pingN8n, probeWebhook } from '@/lib/n8n'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +15,7 @@ export async function GET() {
   // Which webhook paths n8n actually has registered (non-executing probe).
   // WF-3/4/5 run on their own schedule or from the n8n editor, so their dashboard webhooks are optional.
   const REQUIRED = new Set(['WF-3b-SendApproved', 'WF-1-Scraper', 'WF-2-Processor'])
-  const targets = [['WF-3b-SendApproved', APPROVE_AND_SEND_PATH], ...Object.entries(WORKFLOW_WEBHOOK_MAP)]
+  const targets = [['WF-3b-SendApproved', APPROVE_AND_SEND_PATH], ['WF-P3b-PodcastSend', PODCAST_SEND_PATH], ...Object.entries(WORKFLOW_WEBHOOK_MAP)]
   const webhooks = ping.reachable
     ? await Promise.all(
         targets.map(async ([workflow, path]) => ({ workflow, path, required: REQUIRED.has(workflow), ...(await probeWebhook(path)) })),

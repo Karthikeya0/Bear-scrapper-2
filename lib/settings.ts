@@ -38,7 +38,7 @@ export const DEFAULT_SETTINGS: OutreachSettings = {
   drafts_per_run: 10,
   follow_up_days: [4, 7],
   draft_dms: true,
-  daily_max: 20,
+  daily_max: 10,
   send_window_start: 9,
   send_window_end: 18,
   send_on_weekends: false,
